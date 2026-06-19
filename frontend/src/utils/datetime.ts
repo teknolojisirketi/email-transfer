@@ -1,0 +1,30 @@
+/** API returns UTC datetimes; naive strings must be treated as UTC. */
+export function parseApiDate(iso: string): Date {
+  if (iso.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(iso)) {
+    return new Date(iso)
+  }
+  return new Date(`${iso}Z`)
+}
+
+export function formatTrDateTime(iso: string | null): string {
+  if (!iso) return '-'
+  return parseApiDate(iso).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })
+}
+
+export function elapsedSince(iso: string): { h: number; m: number; s: number } {
+  const diff = Math.max(0, Math.floor((Date.now() - parseApiDate(iso).getTime()) / 1000))
+  return {
+    h: Math.floor(diff / 3600),
+    m: Math.floor((diff % 3600) / 60),
+    s: diff % 60,
+  }
+}
+
+export function formatElapsed(iso: string): string {
+  const { h, m, s } = elapsedSince(iso)
+  const parts: string[] = []
+  if (h > 0) parts.push(`${h} sa`)
+  if (m > 0) parts.push(`${m} dk`)
+  parts.push(`${s} sn`)
+  return parts.join(' ')
+}
