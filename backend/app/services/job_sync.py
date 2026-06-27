@@ -6,6 +6,7 @@ from rq.job import Job as RqJob
 from sqlalchemy.orm import Session
 
 from app.database import MigrationJob
+from app.services.job_cancel import CANCELLED_BY_USER, is_job_cancelled_redis
 from app.services.job_log import job_log_path, log_matches_job, read_log_text
 from app.services.queue_service import get_redis
 
@@ -89,7 +90,7 @@ def sync_job_status(job: MigrationJob, db: Session) -> bool:
     """Sync DB job status with worker/queue state. Returns True if changed."""
     rq_status, rq_exc = _rq_state(job.rq_job_id)
 
-    if job.status == "failed" and rq_status == "started":
+    if job.status == "failed" and job.error_message != CANCELLED_BY_USER and rq_status == "started":
         job.status = "running"
         job.error_message = None
         job.finished_at = None
@@ -125,6 +126,8 @@ def sync_job_status(job: MigrationJob, db: Session) -> bool:
             error_message = "Queue record not found (worker may have restarted)"
 
     if job.status == "running":
+        if is_job_cancelled_redis(job.uuid):
+            return False
         if rq_status == "started":
             return False
 

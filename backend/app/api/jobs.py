@@ -13,7 +13,8 @@ from app.schemas import (
     StartMigrationResponse,
 )
 from app.services.imapsync import parse_messages_transferred
-from app.services.job_log import delete_job_log
+from app.services.job_cancel import CANCELLED_BY_USER, mark_job_cancelled
+from app.services.job_log import append_cancelled_to_job_log, delete_job_log
 from app.services.job_sync import read_job_log_content, sync_active_jobs, sync_job_status
 from app.services.log_parser import parse_folder_progress
 from app.services.queue_service import cancel_migration, enqueue_migration
@@ -174,14 +175,18 @@ def cancel_job(job_uuid: str, db: Session = Depends(get_db)):
             detail="Only pending or running jobs can be cancelled",
         )
 
+    account = db.query(Account).filter(Account.id == job.account_id).first()
+    yandex_email = account.yandex_email if account else None
+
+    mark_job_cancelled(job.uuid, yandex_email)
     cancel_migration(job.rq_job_id)
+    append_cancelled_to_job_log(job.uuid)
     job.status = "failed"
-    job.error_message = "Cancelled by user"
+    job.error_message = CANCELLED_BY_USER
     job.finished_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(job)
 
-    account = db.query(Account).filter(Account.id == job.account_id).first()
     return _to_response(job, account)
 
 

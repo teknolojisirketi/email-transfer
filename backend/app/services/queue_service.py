@@ -37,11 +37,22 @@ def enqueue_migration(job_uuid: str) -> str:
 
 
 def cancel_migration(rq_job_id: str | None) -> None:
-    """Remove a queued RQ job so the worker does not run it."""
+    """Cancel queued or running RQ job."""
     if not rq_job_id:
         return
+    redis_conn = get_redis()
     try:
-        rq_job = RqJob.fetch(rq_job_id, connection=get_redis())
+        rq_job = RqJob.fetch(rq_job_id, connection=redis_conn)
+        status = rq_job.get_status()
+        if hasattr(status, "value"):
+            status = status.value
+        if status == "started":
+            try:
+                from rq.command import send_stop_job_command
+
+                send_stop_job_command(redis_conn, rq_job_id)
+            except Exception:
+                pass
         rq_job.cancel()
     except Exception:
         pass

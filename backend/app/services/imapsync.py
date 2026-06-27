@@ -12,7 +12,13 @@ from app.config import settings
 from app.crypto import decrypt_password
 from app.database import Account, AppSettings
 from app.services.imap_folders import build_unmapped_folder_args, list_imap_folders
-from app.services.job_log import job_log_marker, job_log_path
+from app.services.job_cancel import (
+    CANCELLED_BY_USER,
+    kill_orphan_imapsync_for_account,
+    start_cancel_watcher,
+    terminate_process,
+)
+from app.services.job_log import CANCELLED_LOG_LINE, job_log_marker, job_log_path
 from app.services.year_filter import build_search1_args
 
 UNMAPPED_FOLDER_PARENT = "Yandex"
@@ -92,6 +98,7 @@ def run_imapsync(
     job_uuid: str,
     on_progress: Callable[[int], None] | None = None,
     migrate_years: list[int] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> ImapSyncResult:
     logs_dir = Path(settings.logs_dir)
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +110,14 @@ def run_imapsync(
     passfile1 = passfile2 = None
     log_parts: list[str] = []
     try:
+        if should_cancel and should_cancel():
+            return ImapSyncResult(
+                success=False,
+                messages_transferred=0,
+                error_message=CANCELLED_BY_USER,
+                log_content="",
+            )
+
         with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=logs_dir) as f1:
             f1.write(yandex_password)
             passfile1 = Path(f1.name)
@@ -127,6 +142,14 @@ def run_imapsync(
             folder_list_error = str(folder_exc)
         else:
             folder_list_error = None
+
+        if should_cancel and should_cancel():
+            return ImapSyncResult(
+                success=False,
+                messages_transferred=0,
+                error_message=CANCELLED_BY_USER,
+                log_content="",
+            )
 
         cmd = build_imapsync_command(account, app_settings, passfile1, passfile2, folder_args)
         year_args = build_search1_args(migrate_years)
@@ -165,15 +188,55 @@ def run_imapsync(
                 bufsize=1,
             )
 
+            cancel_stopped, cancel_threads = (
+                start_cancel_watcher(
+                    proc,
+                    should_cancel,
+                    job_uuid=job_uuid,
+                    on_cancel=lambda: kill_orphan_imapsync_for_account(
+                        account.yandex_email, account.cpanel_email
+                    ),
+                )
+                if should_cancel
+                else (None, None)
+            )
+
             last_progress = time.time()
+            user_cancelled = False
             assert proc.stdout is not None
-            for line in proc.stdout:
-                log_f.write(line)
-                log_parts.append(line)
-                log_f.flush()
-                if on_progress and time.time() - last_progress >= 5:
-                    on_progress(parse_messages_transferred("".join(log_parts)))
-                    last_progress = time.time()
+            try:
+                for line in proc.stdout:
+                    if should_cancel and should_cancel():
+                        user_cancelled = True
+                        terminate_process(proc)
+                        log_f.write(f"{CANCELLED_LOG_LINE}\n")
+                        log_f.flush()
+                        break
+
+                    log_f.write(line)
+                    log_parts.append(line)
+                    log_f.flush()
+                    if on_progress and time.time() - last_progress >= 5:
+                        on_progress(parse_messages_transferred("".join(log_parts)))
+                        last_progress = time.time()
+            finally:
+                if cancel_stopped is not None:
+                    cancel_stopped.set()
+                if cancel_threads is not None:
+                    for thread in cancel_threads:
+                        thread.join(timeout=1)
+
+            if user_cancelled or (should_cancel and should_cancel()):
+                log_content = "".join(log_parts)
+                messages = parse_messages_transferred(log_content)
+                if on_progress:
+                    on_progress(messages)
+                return ImapSyncResult(
+                    success=False,
+                    messages_transferred=messages,
+                    error_message=CANCELLED_BY_USER,
+                    log_content=log_content,
+                )
 
             try:
                 proc.wait(timeout=86400)
