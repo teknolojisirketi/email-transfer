@@ -2,7 +2,7 @@
 
 Web-based tool to **copy** mail from Yandex Mail accounts to matching cPanel mailboxes. Messages on the source account are not deleted.
 
-🇹🇷 [Türkçe dokümantasyon](README.tr.md)
+🇹🇷 [Turkish dokümantasyon](README.tr.md)
 
 ## Features
 
