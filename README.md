@@ -36,8 +36,6 @@ Web-based tool to **copy** mail from Yandex Mail accounts to matching cPanel mai
 - **Log**, **Cancel**, **Delete**, **Retry** actions
 - Multiple jobs queue; worker processes them in parallel
 
-> Add your screenshots to `docs/images/accounts.png` and `docs/images/jobs.png` if they are not in the repo yet.
-
 ## Server settings
 
 ### Yandex (source)
