@@ -7,8 +7,16 @@ export function parseApiDate(iso: string): Date {
 }
 
 export function formatTrDateTime(iso: string | null): string {
-  if (!iso) return '-'
-  return parseApiDate(iso).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })
+  if (!iso) return '—'
+  return parseApiDate(iso).toLocaleString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
 }
 
 export function elapsedSince(iso: string): { h: number; m: number; s: number } {
@@ -23,8 +31,8 @@ export function elapsedSince(iso: string): { h: number; m: number; s: number } {
 export function formatElapsed(iso: string): string {
   const { h, m, s } = elapsedSince(iso)
   const parts: string[] = []
-  if (h > 0) parts.push(`${h} sa`)
-  if (m > 0) parts.push(`${m} dk`)
-  parts.push(`${s} sn`)
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0) parts.push(`${m}m`)
+  parts.push(`${s}s`)
   return parts.join(' ')
 }

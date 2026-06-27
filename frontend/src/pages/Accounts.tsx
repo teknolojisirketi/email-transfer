@@ -6,14 +6,19 @@ import { STATUS_LABELS } from '../utils/status'
 import CsvImport from '../components/CsvImport'
 import ManualAccountForm from '../components/ManualAccountForm'
 import TestResults from '../components/TestResults'
+import { availableYearOptions } from '../utils/years'
+import { shortUuid } from '../utils/uuid'
 
-type AccountTab = 'all' | 'pending' | 'running' | 'completed'
+type AccountTab = 'all' | 'pending' | 'running' | 'completed' | 'failed'
+
+const YEAR_OPTIONS = availableYearOptions(12)
 
 const TABS: { id: AccountTab; label: string }[] = [
-  { id: 'all', label: 'Tümü' },
-  { id: 'pending', label: 'Bekleyen' },
-  { id: 'running', label: 'Çalışan' },
-  { id: 'completed', label: 'Tamamlandı' },
+  { id: 'all', label: 'All' },
+  { id: 'pending', label: 'Waiting' },
+  { id: 'running', label: 'Running' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'failed', label: 'Failed' },
 ]
 
 export default function Accounts() {
@@ -24,6 +29,7 @@ export default function Accounts() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [testingId, setTestingId] = useState<number | null>(null)
   const [rowTestResult, setRowTestResult] = useState<AccountTestResponse | null>(null)
+  const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -45,7 +51,7 @@ export default function Accounts() {
   const handleImport = async (items: AccountCreate[]) => {
     try {
       const result = await api.bulkImport(items)
-      setMessage(`${result.imported} hesap içe aktarıldı${result.skipped ? `, ${result.skipped} atlandı` : ''}`)
+      setMessage(`${result.imported} account(s) imported${result.skipped ? `, ${result.skipped} skipped` : ''}`)
       load()
     } catch (e) {
       setMessage(String(e))
@@ -55,16 +61,27 @@ export default function Accounts() {
   const handleStartAll = async () => {
     try {
       const ids = selected.size > 0 ? Array.from(selected) : undefined
-      const result = await api.startMigration(ids)
-      setMessage(`${result.jobs_created} iş kuyruğa eklendi`)
+      const years = selectedYears.size > 0 ? Array.from(selectedYears).sort((a, b) => a - b) : undefined
+      const result = await api.startMigration(ids, years)
+      const yearHint = years?.length ? ` (${years.join(', ')})` : ' (all years)'
+      setMessage(`${result.jobs_created} job(s) queued${yearHint}`)
       load()
     } catch (e) {
       setMessage(String(e))
     }
   }
 
+  const toggleYear = (year: number) => {
+    setSelectedYears((prev) => {
+      const next = new Set(prev)
+      if (next.has(year)) next.delete(year)
+      else next.add(year)
+      return next
+    })
+  }
+
   const handleDelete = async (id: number) => {
-    if (!confirm('Bu hesabı silmek istediğinize emin misiniz?')) return
+    if (!confirm('Delete this account?')) return
     await api.deleteAccount(id)
     if (rowTestResult) setRowTestResult(null)
     load()
@@ -79,8 +96,8 @@ export default function Accounts() {
       setRowTestResult(result)
       setMessage(
         result.overall_success
-          ? `Hesap #${id}: Her iki bağlantı başarılı`
-          : `Hesap #${id}: Bağlantı testinde hata var`,
+          ? `Account #${id}: both connections succeeded`
+          : `Account #${id}: connection test failed`,
       )
     } catch (e) {
       setMessage(String(e))
@@ -122,23 +139,45 @@ export default function Accounts() {
     pending: accounts.filter((a) => a.latest_job_status === 'pending').length,
     running: accounts.filter((a) => a.latest_job_status === 'running').length,
     completed: accounts.filter((a) => a.latest_job_status === 'completed').length,
+    failed: accounts.filter((a) => a.latest_job_status === 'failed').length,
   }
 
   const emptyTabMessage: Record<AccountTab, string> = {
-    all: 'Henüz hesap eklenmedi. Elle girin veya CSV ile içe aktarın.',
-    pending: 'Kuyrukta bekleyen hesap yok.',
-    running: 'Şu an taşınan hesap yok.',
-    completed: 'Tamamlanan taşıma yok.',
+    all: 'No accounts yet. Add manually or import from CSV.',
+    pending: 'No accounts waiting in queue.',
+    running: 'No accounts currently migrating.',
+    completed: 'No completed migrations.',
+    failed: 'No failed migrations.',
   }
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h2>Hesaplar</h2>
-        <div className="actions">
+      <div className="accounts-toolbar card">
+        <div className="accounts-toolbar-top">
+          <h2>Accounts</h2>
           <button onClick={handleStartAll} disabled={accounts.length === 0}>
-            {selected.size > 0 ? `Seçilenleri Taşı (${selected.size})` : 'Tümünü Taşı'}
+            {selected.size > 0 ? `Migrate selected (${selected.size})` : 'Migrate all'}
           </button>
+        </div>
+        <div className="year-filter-bar">
+          <span className="year-filter-label">Years to migrate</span>
+          <div className="year-filter-options">
+            {YEAR_OPTIONS.map((year) => (
+              <label key={year} className="year-chip">
+                <input
+                  type="checkbox"
+                  checked={selectedYears.has(year)}
+                  onChange={() => toggleYear(year)}
+                />
+                {year}
+              </label>
+            ))}
+          </div>
+          <p className="year-filter-hint">
+            {selectedYears.size > 0
+              ? `Selected: ${[...selectedYears].sort((a, b) => a - b).join(', ')}`
+              : 'If none selected, all mail will be migrated'}
+          </p>
         </div>
       </div>
 
@@ -150,13 +189,13 @@ export default function Accounts() {
 
       {rowTestResult && (
         <div className="card">
-          <h3>Son Test Sonucu</h3>
+          <h3>Latest test result</h3>
           <TestResults result={rowTestResult} />
         </div>
       )}
 
       {loading && accounts.length === 0 ? (
-        <p>Yükleniyor...</p>
+        <p>Loading...</p>
       ) : accounts.length === 0 ? (
         <p className="empty">{emptyTabMessage.all}</p>
       ) : (
@@ -192,11 +231,11 @@ export default function Accounts() {
                         onChange={toggleAll}
                       />
                     </th>
-                    <th>Yandex E-posta</th>
-                    <th>cPanel E-posta</th>
-                    <th>cPanel IMAP Host</th>
-                    <th>Taşıma</th>
-                    <th>Eklenme</th>
+                    <th>Yandex email</th>
+                    <th>cPanel email</th>
+                    <th>cPanel IMAP host</th>
+                    <th>Migration</th>
+                    <th>Added</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -220,16 +259,21 @@ export default function Accounts() {
                           {STATUS_LABELS[a.latest_job_status] || a.latest_job_status}
                         </span>
                         {a.messages_transferred > 0 && (
-                          <span className="msg-count">{a.messages_transferred} mesaj</span>
+                          <span className="msg-count">{a.messages_transferred} messages</span>
                         )}
-                        {a.latest_job_id && (
+                        {a.latest_job_uuid && (
                           <Link to="/jobs" className="job-link">
-                            #{a.latest_job_id}
+                            {shortUuid(a.latest_job_uuid)}
                           </Link>
+                        )}
+                        {a.latest_job_status === 'failed' && a.latest_job_error && (
+                          <span className="error-text job-error-detail" title={a.latest_job_error}>
+                            {a.latest_job_error}
+                          </span>
                         )}
                       </div>
                     ) : (
-                      <span className="muted">Kuyrukta değil</span>
+                      <span className="muted">Not queued</span>
                     )}
                   </td>
                   <td>{formatTrDateTime(a.created_at)}</td>
@@ -242,7 +286,7 @@ export default function Accounts() {
                       {testingId === a.id ? '...' : 'Test'}
                     </button>
                     <button className="danger small" onClick={() => handleDelete(a.id)}>
-                      Sil
+                      Delete
                     </button>
                   </td>
                 </tr>

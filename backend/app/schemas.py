@@ -61,9 +61,10 @@ class AccountResponse(BaseModel):
     cpanel_email: str
     cpanel_imap_host: str
     created_at: datetime
-    latest_job_id: Optional[int] = None
+    latest_job_uuid: Optional[str] = None
     latest_job_status: Optional[str] = None
     messages_transferred: int = 0
+    latest_job_error: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -96,12 +97,13 @@ class AccountTestResponse(BaseModel):
 
 
 class JobResponse(BaseModel):
-    id: int
+    uuid: str
     account_id: int
     status: str
     messages_transferred: int
     error_message: Optional[str]
     log_file: Optional[str]
+    migrate_years: Optional[str] = None
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     created_at: datetime
@@ -125,7 +127,7 @@ class FolderProgressItem(BaseModel):
 
 
 class JobLogResponse(BaseModel):
-    job_id: int
+    job_uuid: str
     log: str
     folders: list[FolderProgressItem] = []
     messages_transferred: int = 0
@@ -133,8 +135,9 @@ class JobLogResponse(BaseModel):
 
 class StartMigrationRequest(BaseModel):
     account_ids: list[int] | None = None
+    years: list[int] | None = None
 
 
 class StartMigrationResponse(BaseModel):
     jobs_created: int
-    job_ids: list[int]
+    job_uuids: list[str]

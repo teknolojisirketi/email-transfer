@@ -27,7 +27,7 @@ def create_access_token(subject: str) -> tuple[str, int]:
     if not settings.jwt_secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kimlik doğrulama yapılandırılmamış (JWT_SECRET eksik)",
+            detail="Authentication not configured (JWT_SECRET missing)",
         )
     expires_hours = settings.jwt_expire_hours
     expire = datetime.now(timezone.utc) + timedelta(hours=expires_hours)
@@ -40,20 +40,20 @@ def decode_access_token(token: str) -> str:
     if not settings.jwt_secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kimlik doğrulama yapılandırılmamış",
+            detail="Authentication not configured",
         )
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Oturum süresi doldu",
+            detail="Session expired",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
     except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Geçersiz oturum",
+            detail="Invalid session",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
@@ -61,7 +61,7 @@ def decode_access_token(token: str) -> str:
     if not subject or subject != settings.admin_username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Geçersiz oturum",
+            detail="Invalid session",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return subject

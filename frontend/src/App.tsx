@@ -21,18 +21,18 @@ function AppShell() {
         <div className="header-top">
           <div>
             <h1>Email Transfer</h1>
-            <p className="subtitle">Yandex → cPanel e-posta kopyalama</p>
+            <p className="subtitle">Yandex → cPanel email migration</p>
           </div>
           <button type="button" className="secondary small logout-btn" onClick={logout}>
-            Çıkış
+            Log out
           </button>
         </div>
         <nav>
           <NavLink to="/" end>
-            Hesaplar
+            Accounts
           </NavLink>
-          <NavLink to="/jobs">İşler</NavLink>
-          <NavLink to="/settings">Ayarlar</NavLink>
+          <NavLink to="/jobs">Jobs</NavLink>
+          <NavLink to="/settings">Settings</NavLink>
         </nav>
       </header>
       <main>

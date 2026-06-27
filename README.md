@@ -1,122 +1,182 @@
-# Yandex → cPanel E-posta Taşıma
+# Yandex → cPanel Email Migration
 
-Yandex Mail hesaplarındaki e-postaları cPanel'de oluşturulmuş hesaplara **kopyalayan** web arayüzlü araç. Kaynak hesaptaki mailler silinmez.
+Web-based tool to **copy** mail from Yandex Mail accounts to matching cPanel mailboxes. Messages on the source account are not deleted.
 
-## Özellikler
+🇹🇷 [Türkçe dokümantasyon](README.tr.md)
 
-- Toplu CSV ile hesap/şifre girişi
-- Yandex IMAP → cPanel IMAP kopyalama (imapsync)
-- İş kuyruğu ve paralel taşıma
-- Canlı durum ve log takibi
-- Şifreler veritabanında şifreli saklanır
+## Features
 
-## Sunucu Ayarları
+- Manual account entry and bulk CSV import
+- Yandex IMAP → cPanel IMAP migration via [imapsync](https://imapsync.lamiral.info/)
+- **Year filter** — migrate mail from selected years only (single job per account)
+- Job queue with parallel workers (configurable concurrency)
+- **UUID-based jobs** — each job has a unique ID and log file (`job-{uuid}.log`)
+- Live status, folder progress, and log viewer
+- JWT-protected admin panel
+- Passwords encrypted at rest (Fernet)
+- SQLite database + Redis job queue
 
-### Yandex (Kaynak)
+## Screenshots
 
-| Ayar | Değer |
-|------|-------|
-| IMAP sunucu (Türkiye) | `imap.yandex.com.tr` |
-| IMAP sunucu (Rusya dışı) | `imap.ya.ru` |
+### Accounts
+
+![Accounts page](docs/images/accounts.png)
+
+- Select **years to migrate** (empty = all mail)
+- Add accounts manually or import CSV
+- **Test connection** before saving
+- Filter tabs: All / Waiting / Running / Completed / Failed
+
+### Jobs
+
+![Jobs page](docs/images/jobs.png)
+
+- Each job has a unique **UUID** (short ID shown in table)
+- Status: Waiting, Running, Completed, Failed
+- **Log**, **Cancel**, **Delete**, **Retry** actions
+- Multiple jobs queue; worker processes them in parallel
+
+> Add your screenshots to `docs/images/accounts.png` and `docs/images/jobs.png` if they are not in the repo yet.
+
+## Server settings
+
+### Yandex (source)
+
+| Setting | Value |
+|---------|-------|
+| IMAP server (Turkey) | `imap.yandex.com.tr` |
+| IMAP server (outside Russia) | `imap.ya.ru` |
 | Port | `993` |
-| Güvenlik | SSL |
+| Security | SSL |
 
-Yandex'te IMAP etkin olmalı ve **uygulama şifresi** kullanılmalıdır.
+IMAP must be enabled on Yandex and you must use an **app password**.
 
-### cPanel (Hedef)
+### cPanel (destination)
 
-| Ayar | Değer |
-|------|-------|
-| IMAP sunucu | `mail.DOMAIN.com` (her domain için farklı) |
+| Setting | Value |
+|---------|-------|
+| IMAP server | `mail.YOURDOMAIN.com` (per domain) |
 | Port | `993` |
-| Güvenlik | SSL/TLS |
-| Kullanıcı adı | Tam e-posta adresi (ör. `user@example.com`) |
+| Security | SSL/TLS |
+| Username | Full email address (e.g. `user@example.com`) |
 
-Örnek example.com için: `mail.example.com`, port 993, SSL açık.
-
-## Kurulum
+## Installation
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` dosyasında şifreleme anahtarı oluşturun:
+Generate an encryption key:
 
 ```bash
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Çıktıyı `ENCRYPTION_KEY=` satırına yapıştırın.
+Paste the output into `ENCRYPTION_KEY=` in `.env`.
+
+### Admin login
+
+The web UI requires authentication. Set these in `.env`:
+
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_USERNAME` | Panel username (default: `admin`) |
+| `ADMIN_PASSWORD` | Panel password — use a strong value in production |
+| `JWT_SECRET` | Session signing key — long random string |
+| `JWT_EXPIRE_HOURS` | Session lifetime in hours (default: `24`) |
+
+Generate `JWT_SECRET`:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Example:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me-strong-password
+JWT_SECRET=your-generated-secret
+JWT_EXPIRE_HOURS=24
+```
+
+If `ADMIN_PASSWORD` or `JWT_SECRET` is empty, login will not work.
 
 ```bash
 docker compose up --build -d
 ```
 
-Tarayıcı: **http://localhost:3000**
+Open **http://localhost:3000** — sign in with `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 
-## Ana Mantık
+## How it works
 
-Her domain için Yandex'teki bir hesaptan cPanel'deki karşılığına **tüm e-postalar ve klasörler** kopyalanır. Kaynak hesap silinmez.
+For each account, mail is copied from Yandex to the matching cPanel mailbox. All folders (INBOX, Sent, Drafts, Spam, Trash, custom folders) are migrated. Read/unread flags are preserved via Message-Id deduplication.
 
-**Örnek (example.com):**
+**Example (example.com):**
 
-| | Adres |
-|---|-------|
-| Yandex (kaynak) | `example@example.com` |
-| cPanel (hedef) | `example@example.com` |
+| | Address |
+|---|---------|
+| Yandex (source) | `user@example.com` |
+| cPanel (destination) | `user@example.com` |
 | IMAP host | `mail.example.com` |
 
-Kopyalanan klasörler: Gelen Kutusu (INBOX), Giden, Taslaklar, Spam, Çöp ve tüm özel klasörler. Okundu/okunmadı bayrakları da aktarılır.
+### Year filter
 
-## CSV Formatı
+On the Accounts page, check one or more years before starting migration. If none are selected, all mail is copied. Multiple selected years become a single date range (min year → max year) in one imapsync job.
+
+## CSV format
 
 ```csv
 yandex_email,yandex_password,cpanel_email,cpanel_password,cpanel_imap_host
-example@example.com,yandex_sifre,example@example.com,cpanel_sifre,mail.example.com
+example@example.com,yandex_app_password,example@example.com,cpanel_password,mail.example.com
 ```
 
-`cpanel_imap_host` boş bırakılırsa otomatik `mail.{domain}` kullanılır:
+If `cpanel_imap_host` is empty, `mail.{domain}` is used automatically:
 
 ```csv
-example@example.com,yandex_sifre,example@example.com,cpanel_sifre,
+example@example.com,yandex_pass,example@example.com,cpanel_pass,
 ```
 
-Arayüzde **Örnek CSV İndir** butonuyla şablon dosyasını indirebilirsiniz.
+Use **Download sample CSV** in the UI for a template.
 
-## Kullanım
+## Usage
 
-1. **Ayarlar** — Yandex IMAP bilgilerini doğrulayın (`imap.yandex.com.tr`, 993, SSL)
-2. **Hesaplar** — Elle tek tek ekleyin veya CSV ile toplu içe aktarın
-3. **Bağlantıyı Test Et** — kaydetmeden önce Yandex ve cPanel IMAP bağlantısını kontrol edin
-4. **Tümünü Taşı** veya seçili hesapları taşıyın
-5. **İşler** — ilerlemeyi ve logları izleyin; hatalı işleri yeniden deneyin
+1. **Sign in** with admin credentials
+2. **Settings** — verify Yandex IMAP defaults
+3. **Accounts** — add accounts or import CSV
+4. **Test connection** before saving new accounts
+5. Optionally select **years to migrate**, then **Migrate all** or selected accounts
+6. **Jobs** — watch progress and logs; retry failed jobs or delete old ones
 
-## Ön Koşullar
+## Prerequisites
 
-- cPanel'de hedef e-posta hesapları **önceden oluşturulmuş** olmalı
-- Yandex'te IMAP açık ve uygulama şifresi hazır olmalı
-- Her domain için doğru `mail.domain.com` IMAP host bilgisi
-- 50+ hesap için yeterli disk ve bant genişliği (işler uzun sürebilir)
+- Destination mailboxes must already exist on cPanel
+- Yandex IMAP enabled with app passwords ready
+- Correct `mail.domain.com` IMAP host per domain
+- Enough disk and bandwidth for large mailboxes (jobs can run for hours)
 
-## Servisler
+## Architecture
 
-| Servis | Port | Açıklama |
-|--------|------|----------|
-| web | 3000 | React arayüz |
-| api | 8000 | FastAPI REST API |
-| worker | — | imapsync iş kuyruğu consumer |
-| redis | — | İş kuyruğu |
+| Service | Port | Description |
+|---------|------|-------------|
+| web | 3000 | React UI + nginx (proxies `/api`, auth required) |
+| api | internal | FastAPI REST API |
+| worker | — | imapsync via RQ consumer |
+| redis | — | Job queue |
+| sqlite | — | Accounts, jobs, settings (`/data/email_transfer.db`) |
 
-## Güvenlik Notları
+## Security notes
 
-- `.env` dosyasını paylaşmayın
-- Üretimde reverse proxy + kimlik doğrulama kullanın
-- Uygulama yalnızca güvenilir ağda çalıştırılmalıdır
+- Do not commit `.env` or share credentials
+- Use strong `ADMIN_PASSWORD` and `JWT_SECRET` in production
+- Do not expose this panel to customers — it stores mailbox passwords
+- Use HTTPS behind a reverse proxy in production
+- Run only on trusted networks
 
-## Durdurma
+## Stop
 
 ```bash
 docker compose down
 ```
 
-Veriler `app_data` ve `app_logs` volume'larında kalır.
+Data persists in `app_data` and `app_logs` Docker volumes.

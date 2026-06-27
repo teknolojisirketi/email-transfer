@@ -12,12 +12,12 @@ def login(payload: LoginRequest):
     if not auth_is_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ADMIN_PASSWORD ve JWT_SECRET .env dosyasında tanımlanmalı",
+            detail="ADMIN_PASSWORD and JWT_SECRET must be set in .env",
         )
     if not verify_admin_credentials(payload.username.strip(), payload.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Kullanıcı adı veya şifre hatalı",
+            detail="Invalid username or password",
         )
     token, expires_in = create_access_token(payload.username.strip())
     return LoginResponse(access_token=token, token_type="bearer", expires_in=expires_in)

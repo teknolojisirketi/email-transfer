@@ -276,8 +276,16 @@ th {
 }
 
 .error-text {
-  font-size: 0.75rem;
-  color: #dc2626;
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.job-error-detail {
+  display: block;
+  max-width: 280px;
+  margin-top: 0.25rem;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .modal-overlay {
@@ -533,4 +541,69 @@ th {
 
 .filter-tab.active .tab-count {
   background: rgba(255, 255, 255, 0.25);
+}
+
+.accounts-toolbar {
+  margin-bottom: 1rem;
+}
+
+.accounts-toolbar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.accounts-toolbar-top h2 {
+  margin: 0;
+}
+
+.year-filter-bar {
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
+}
+
+.year-filter-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.year-filter-hint {
+  margin: 0.65rem 0 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.year-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.year-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+.year-chip input {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.year-chip:has(input:checked) {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1d4ed8;
 }

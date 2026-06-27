@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, Job, JobLog } from '../api'
+import { shortUuid } from '../utils/uuid'
 
 interface Props {
   job: Job
@@ -13,10 +14,10 @@ export default function JobLogModal({ job, onClose }: Props) {
     let active = true
     const load = async () => {
       try {
-        const result = await api.getJobLog(job.id)
+        const result = await api.getJobLog(job.uuid)
         if (active) setData(result)
       } catch {
-        if (active) setData({ job_id: job.id, log: '', folders: [], messages_transferred: 0 })
+        if (active) setData({ job_uuid: job.uuid, log: '', folders: [], messages_transferred: 0 })
       }
     }
     load()
@@ -25,22 +26,25 @@ export default function JobLogModal({ job, onClose }: Props) {
       active = false
       clearInterval(interval)
     }
-  }, [job.id, job.status])
+  }, [job.uuid, job.status])
 
   const folders = data?.folders ?? []
+  const logText =
+    data?.log ||
+    (job.status === 'pending' ? 'Job has not started yet.' : job.status === 'running' ? 'Loading log...' : 'No log found.')
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal card log-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>
-            İş #{job.id} — {job.yandex_email}
+            Job {shortUuid(job.uuid)} — {job.yandex_email}
             {data && data.messages_transferred > 0 && (
-              <span className="log-msg-total"> ({data.messages_transferred} mesaj)</span>
+              <span className="log-msg-total"> ({data.messages_transferred} messages)</span>
             )}
           </h3>
           <button className="secondary small" onClick={onClose}>
-            Kapat
+            Close
           </button>
         </div>
 
@@ -50,10 +54,10 @@ export default function JobLogModal({ job, onClose }: Props) {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Yandex Klasör</th>
-                  <th>Durum</th>
-                  <th>Kaynak</th>
-                  <th>Kopyalanan</th>
+                  <th>Yandex folder</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Copied</th>
                 </tr>
               </thead>
               <tbody>
@@ -65,7 +69,7 @@ export default function JobLogModal({ job, onClose }: Props) {
                     <td>{f.name}</td>
                     <td>
                       <span className={`status-badge status-${f.status === 'completed' ? 'completed' : 'running'}`}>
-                        {f.status === 'completed' ? 'Tamam' : 'Aktarılıyor'}
+                        {f.status === 'completed' ? 'Done' : 'Copying'}
                       </span>
                     </td>
                     <td>{f.source_messages ?? '—'}</td>
@@ -78,12 +82,14 @@ export default function JobLogModal({ job, onClose }: Props) {
         ) : (
           <p className="hint log-hint">
             {job.status === 'running'
-              ? 'Klasör listesi henüz oluşmadı, imapsync başlıyor...'
-              : 'Klasör detayı logda bulunamadı.'}
+              ? 'Folder list not ready yet; imapsync is starting...'
+              : job.status === 'pending'
+                ? 'Job is waiting in queue.'
+                : 'No folder details found in the log.'}
           </p>
         )}
 
-        <pre className="log-viewer">{data?.log || 'Log yükleniyor...'}</pre>
+        <pre className="log-viewer">{logText}</pre>
       </div>
     </div>
   )

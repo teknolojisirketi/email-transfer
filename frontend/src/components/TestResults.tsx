@@ -8,7 +8,7 @@ export default function TestResults({ result }: { result: AccountTestResponse })
         {result.yandex.success && (
           <span>
             {' '}
-            — {result.yandex.folder_count} klasör, Gelen: {result.yandex.inbox_messages} mesaj
+            — {result.yandex.folder_count} folders, Inbox: {result.yandex.inbox_messages} messages
           </span>
         )}
       </div>
@@ -17,7 +17,7 @@ export default function TestResults({ result }: { result: AccountTestResponse })
         {result.cpanel.success && (
           <span>
             {' '}
-            — {result.cpanel.folder_count} klasör, Gelen: {result.cpanel.inbox_messages} mesaj
+            — {result.cpanel.folder_count} folders, Inbox: {result.cpanel.inbox_messages} messages
           </span>
         )}
       </div>

@@ -14,7 +14,7 @@ export default function CsvImport({ onImport }: Props) {
     const text = textareaRef.current?.value || ''
     const accounts = parseCsv(text)
     if (accounts.length === 0) {
-      alert('Geçerli satır bulunamadı. CSV formatını kontrol edin.')
+      alert('No valid rows found. Check the CSV format.')
       return
     }
     onImport(accounts)
@@ -28,7 +28,7 @@ export default function CsvImport({ onImport }: Props) {
     reader.onload = () => {
       const accounts = parseCsv(reader.result as string)
       if (accounts.length === 0) {
-        alert('Dosyada geçerli satır bulunamadı.')
+        alert('No valid rows found in the file.')
         return
       }
       onImport(accounts)
@@ -39,27 +39,27 @@ export default function CsvImport({ onImport }: Props) {
 
   return (
     <div className="csv-import card">
-      <h3>Toplu CSV İçe Aktar</h3>
+      <h3>Bulk CSV import</h3>
       <p className="hint">
-        Her satır bir hesap çifti: Yandex kaynak → cPanel hedef. Tüm klasörler (Gelen, Giden,
-        Taslaklar, Spam, özel klasörler) otomatik kopyalanır.
+        One row per account pair: Yandex source → cPanel destination. All folders (Inbox, Sent,
+        Drafts, Spam, custom folders) are copied automatically.
         <br />
-        Örnek: example@example.com (Yandex) → example@example.com (cPanel), host: mail.example.com
+        Example: example@example.com (Yandex) → example@example.com (cPanel), host: mail.example.com
       </p>
       <textarea
         ref={textareaRef}
-        placeholder={csvTemplate() + 'example@example.com,yandex_sifre,example@example.com,cpanel_sifre,mail.example.com'}
+        placeholder={csvTemplate() + 'example@example.com,yandex_pass,example@example.com,cpanel_pass,mail.example.com'}
         rows={6}
       />
       <div className="csv-actions">
         <button type="button" onClick={handlePaste}>
-          Yapıştırılanı İçe Aktar
+          Import pasted text
         </button>
         <button type="button" className="secondary" onClick={() => fileRef.current?.click()}>
-          CSV Dosyası Seç
+          Choose CSV file
         </button>
         <button type="button" className="secondary" onClick={() => downloadCsvExample()}>
-          Örnek CSV İndir
+          Download sample CSV
         </button>
         <input
           ref={fileRef}

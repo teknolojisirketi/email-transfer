@@ -50,11 +50,11 @@ export default function ManualAccountForm({ onSaved }: Props) {
   const handleTest = async () => {
     const data = payload()
     if (!data.yandex_email || !data.cpanel_email) {
-      setError('Yandex ve cPanel e-posta adresleri zorunludur.')
+      setError('Yandex and cPanel email addresses are required.')
       return
     }
     if (!data.yandex_password || !data.cpanel_password) {
-      setError('Test için her iki şifre de girilmelidir.')
+      setError('Both passwords are required for testing.')
       return
     }
 
@@ -74,11 +74,11 @@ export default function ManualAccountForm({ onSaved }: Props) {
   const handleSave = async () => {
     const data = payload()
     if (!data.yandex_email || !data.cpanel_email || !data.cpanel_imap_host) {
-      setError('Tüm zorunlu alanları doldurun.')
+      setError('Please fill in all required fields.')
       return
     }
     if (!data.yandex_password || !data.cpanel_password) {
-      setError('Her iki şifre de zorunludur.')
+      setError('Both passwords are required.')
       return
     }
 
@@ -88,7 +88,7 @@ export default function ManualAccountForm({ onSaved }: Props) {
       await api.createAccount(data)
       setForm({ ...emptyForm })
       setTestResult(null)
-      onSaved('Hesap kaydedildi.')
+      onSaved('Account saved.')
     } catch (e) {
       setError(String(e))
     } finally {
@@ -98,14 +98,14 @@ export default function ManualAccountForm({ onSaved }: Props) {
 
   return (
     <div className="card manual-form">
-      <h3>Elle Hesap Ekle</h3>
+      <h3>Add account manually</h3>
       <p className="hint">
-        Tek tek hesap girişi yapın. Kaydetmeden önce bağlantıyı test edebilirsiniz.
+        Add accounts one at a time. You can test the connection before saving.
       </p>
 
       <div className="form-grid manual-grid">
         <label>
-          Yandex E-posta
+          Yandex email
           <input
             type="email"
             value={form.yandex_email}
@@ -114,16 +114,16 @@ export default function ManualAccountForm({ onSaved }: Props) {
           />
         </label>
         <label>
-          Yandex Şifre
+          Yandex password
           <input
             type="password"
             value={form.yandex_password}
             onChange={(e) => update('yandex_password', e.target.value)}
-            placeholder="Uygulama şifresi"
+            placeholder="App password"
           />
         </label>
         <label>
-          cPanel E-posta
+          cPanel email
           <input
             type="email"
             value={form.cpanel_email}
@@ -132,21 +132,21 @@ export default function ManualAccountForm({ onSaved }: Props) {
           />
         </label>
         <label>
-          cPanel Şifre
+          cPanel password
           <input
             type="password"
             value={form.cpanel_password}
             onChange={(e) => update('cpanel_password', e.target.value)}
-            placeholder="E-posta şifresi"
+            placeholder="Email password"
           />
         </label>
         <label>
-          cPanel IMAP Host
+          cPanel IMAP host
           <input
             type="text"
             value={form.cpanel_imap_host}
             onChange={(e) => update('cpanel_imap_host', e.target.value)}
-            placeholder="mail.example.com (boş = otomatik)"
+            placeholder="mail.example.com (auto if empty)"
           />
         </label>
       </div>
@@ -156,10 +156,10 @@ export default function ManualAccountForm({ onSaved }: Props) {
 
       <div className="csv-actions">
         <button type="button" className="secondary" onClick={handleTest} disabled={testing || saving}>
-          {testing ? 'Test ediliyor...' : 'Bağlantıyı Test Et'}
+          {testing ? 'Testing...' : 'Test connection'}
         </button>
         <button type="button" onClick={handleSave} disabled={testing || saving}>
-          {saving ? 'Kaydediliyor...' : 'Kaydet'}
+          {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
     </div>

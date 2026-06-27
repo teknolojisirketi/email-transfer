@@ -3,6 +3,8 @@ import { api, Job } from '../api'
 import JobLogModal from '../components/JobLogModal'
 import JobProgress from '../components/JobProgress'
 import { formatTrDateTime } from '../utils/datetime'
+import { shortUuid } from '../utils/uuid'
+import { formatYearsLabel } from '../utils/years'
 
 export default function Jobs() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -24,24 +26,45 @@ export default function Jobs() {
     return () => clearInterval(interval)
   }, [load])
 
-  const retry = async (id: number) => {
-    await api.retryJob(id)
+  const retry = async (uuid: string) => {
+    await api.retryJob(uuid)
     load()
+  }
+
+  const handleCancel = async (job: Job) => {
+    const label = `${job.yandex_email} → ${job.cpanel_email}`
+    const hint =
+      job.status === 'running'
+        ? ' The migration may stop mid-way; you can retry afterwards.'
+        : ' It will be removed from the queue.'
+    if (!confirm(`Cancel job ${shortUuid(job.uuid)} (${label})?${hint}`)) {
+      return
+    }
+    try {
+      await api.cancelJob(job.uuid)
+      if (selectedJob?.uuid === job.uuid) {
+        setSelectedJob({ ...selectedJob, status: 'failed', error_message: 'Cancelled by user' })
+      }
+      setMessage(`Job ${shortUuid(job.uuid)} cancelled. Use Retry to start again.`)
+      load()
+    } catch (e) {
+      setMessage(String(e))
+    }
   }
 
   const handleDelete = async (job: Job) => {
     if (job.status === 'running') {
-      setMessage('Çalışan iş silinemez.')
+      setMessage('Cannot delete a running job. Cancel it first.')
       return
     }
     const label = `${job.yandex_email} → ${job.cpanel_email}`
-    if (!confirm(`İş #${job.id} (${label}) silinsin mi?${job.status === 'pending' ? ' Kuyruktan da kaldırılacak.' : ''}`)) {
+    if (!confirm(`Delete job ${shortUuid(job.uuid)} (${label})?${job.status === 'pending' ? ' It will also be removed from the queue.' : ''}`)) {
       return
     }
     try {
-      await api.deleteJob(job.id)
-      if (selectedJob?.id === job.id) setSelectedJob(null)
-      setMessage(`İş #${job.id} silindi.`)
+      await api.deleteJob(job.uuid)
+      if (selectedJob?.uuid === job.uuid) setSelectedJob(null)
+      setMessage(`Job ${shortUuid(job.uuid)} deleted.`)
       load()
     } catch (e) {
       setMessage(String(e))
@@ -51,35 +74,36 @@ export default function Jobs() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>İşler</h2>
+        <h2>Jobs</h2>
         <button className="secondary" onClick={load}>
-          Yenile
+          Refresh
         </button>
       </div>
 
       {message && <div className="alert">{message}</div>}
 
       {loading && jobs.length === 0 ? (
-        <p>Yükleniyor...</p>
+        <p>Loading...</p>
       ) : jobs.length === 0 ? (
-        <p className="empty">Henüz iş yok. Hesaplar sayfasından taşımayı başlatın.</p>
+        <p className="empty">No jobs yet. Start a migration from the Accounts page.</p>
       ) : (
         <div className="table-wrap card">
           <table>
             <thead>
               <tr>
-                <th>#</th>
+                <th>ID</th>
                 <th>Yandex → cPanel</th>
-                <th>Durum</th>
-                <th>Başlangıç</th>
-                <th>Bitiş</th>
+                <th>Status</th>
+                <th>Years</th>
+                <th>Started</th>
+                <th>Finished</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td>{job.id}</td>
+                <tr key={job.uuid}>
+                  <td title={job.uuid}>{shortUuid(job.uuid)}</td>
                   <td>
                     <div className="email-pair">
                       <span>{job.yandex_email}</span>
@@ -90,20 +114,31 @@ export default function Jobs() {
                   <td>
                     <JobProgress job={job} />
                   </td>
+                  <td>{formatYearsLabel(job.migrate_years) ?? 'All'}</td>
                   <td>{formatTrDateTime(job.started_at)}</td>
                   <td>{formatTrDateTime(job.finished_at)}</td>
                   <td className="row-actions">
                     <button className="small secondary" onClick={() => setSelectedJob(job)}>
                       Log
                     </button>
-                    {(job.status === 'failed' || job.status === 'completed') && (
-                      <button className="small" onClick={() => retry(job.id)}>
-                        Yeniden Dene
+                    {(job.status === 'pending' || job.status === 'running') && (
+                      <button className="small danger" onClick={() => handleCancel(job)}>
+                        Cancel
+                      </button>
+                    )}
+                    {job.status === 'failed' && (
+                      <button className="small" onClick={() => retry(job.uuid)}>
+                        Retry
+                      </button>
+                    )}
+                    {job.status === 'completed' && (
+                      <button className="small secondary" onClick={() => retry(job.uuid)}>
+                        Migrate again
                       </button>
                     )}
                     {job.status !== 'running' && (
                       <button className="small danger" onClick={() => handleDelete(job)}>
-                        Sil
+                        Delete
                       </button>
                     )}
                   </td>

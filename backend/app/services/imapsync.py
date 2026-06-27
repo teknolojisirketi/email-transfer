@@ -12,6 +12,8 @@ from app.config import settings
 from app.crypto import decrypt_password
 from app.database import Account, AppSettings
 from app.services.imap_folders import build_unmapped_folder_args, list_imap_folders
+from app.services.job_log import job_log_marker, job_log_path
+from app.services.year_filter import build_search1_args
 
 UNMAPPED_FOLDER_PARENT = "Yandex"
 
@@ -87,17 +89,19 @@ def build_imapsync_command(
 def run_imapsync(
     account: Account,
     app_settings: AppSettings,
-    job_id: int,
+    job_uuid: str,
     on_progress: Callable[[int], None] | None = None,
+    migrate_years: list[int] | None = None,
 ) -> ImapSyncResult:
     logs_dir = Path(settings.logs_dir)
     logs_dir.mkdir(parents=True, exist_ok=True)
-    log_file = logs_dir / f"job-{job_id}.log"
+    log_file = job_log_path(job_uuid)
 
     yandex_password = decrypt_password(account.yandex_password_enc)
     cpanel_password = decrypt_password(account.cpanel_password_enc)
 
     passfile1 = passfile2 = None
+    log_parts: list[str] = []
     try:
         with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=logs_dir) as f1:
             f1.write(yandex_password)
@@ -125,18 +129,32 @@ def run_imapsync(
             folder_list_error = None
 
         cmd = build_imapsync_command(account, app_settings, passfile1, passfile2, folder_args)
+        year_args = build_search1_args(migrate_years)
+        if year_args:
+            cmd.extend(year_args)
+
+        header_lines = [f"{job_log_marker(job_uuid)}\n"]
+        if migrate_years:
+            from app.services.year_filter import format_years_label
+
+            label = format_years_label(migrate_years)
+            header_lines.append(f"=== Year filter: {label} ===\n")
+        if folder_list_error:
+            header_lines.append(f"=== Folder list warning: {folder_list_error} ===\n")
+        if folder_args:
+            header_lines.append(
+                f"=== Custom folder mappings (target: INBOX.{UNMAPPED_FOLDER_PARENT}.<yandex_name>) ===\n"
+            )
+            for i in range(0, len(folder_args), 2):
+                if folder_args[i] == "--f1f2":
+                    header_lines.append(f"  {folder_args[i + 1]}\n")
+        elif not folder_list_error:
+            header_lines.append("=== All folders matched via automap ===\n")
+
+        log_parts = list(header_lines)
 
         with open(log_file, "w", encoding="utf-8") as log_f:
-            log_f.write(f"=== Job {job_id} started ===\n")
-            if folder_list_error:
-                log_f.write(f"=== Klasör listesi uyarısı: {folder_list_error} ===\n")
-            if folder_args:
-                log_f.write(f"=== Özel klasör eşlemeleri (hedef: INBOX.{UNMAPPED_FOLDER_PARENT}.<yandex_adı>) ===\n")
-                for i in range(0, len(folder_args), 2):
-                    if folder_args[i] == "--f1f2":
-                        log_f.write(f"  {folder_args[i + 1]}\n")
-            elif not folder_list_error:
-                log_f.write("=== Tüm klasörler automap ile eşleşiyor ===\n")
+            log_f.writelines(header_lines)
             log_f.flush()
 
             proc = subprocess.Popen(
@@ -151,9 +169,10 @@ def run_imapsync(
             assert proc.stdout is not None
             for line in proc.stdout:
                 log_f.write(line)
+                log_parts.append(line)
                 log_f.flush()
                 if on_progress and time.time() - last_progress >= 5:
-                    on_progress(parse_messages_transferred(log_file.read_text(encoding="utf-8", errors="replace")))
+                    on_progress(parse_messages_transferred("".join(log_parts)))
                     last_progress = time.time()
 
             try:
@@ -161,14 +180,15 @@ def run_imapsync(
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
+                log_content = "".join(log_parts)
                 return ImapSyncResult(
                     success=False,
                     messages_transferred=0,
                     error_message="imapsync timed out after 24 hours",
-                    log_content=log_file.read_text(encoding="utf-8", errors="replace"),
+                    log_content=log_content,
                 )
 
-        log_content = log_file.read_text(encoding="utf-8", errors="replace")
+        log_content = "".join(log_parts)
         messages = parse_messages_transferred(log_content)
         success = proc.returncode == 0
         error_message = None if success else _extract_error(log_content, proc.returncode or 1)
@@ -183,7 +203,9 @@ def run_imapsync(
             log_content=log_content,
         )
     except Exception as exc:
-        log_content = log_file.read_text(encoding="utf-8", errors="replace") if log_file.exists() else ""
+        log_content = "".join(log_parts) if log_parts else ""
+        if not log_content and log_file.exists():
+            log_content = log_file.read_text(encoding="utf-8", errors="replace")
         return ImapSyncResult(
             success=False,
             messages_transferred=0,

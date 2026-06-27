@@ -73,13 +73,13 @@ export function csvTemplate(): string {
 export function csvExampleContent(): string {
   return [
     CSV_HEADERS.join(','),
-    'example@example.com,yandex_uygulama_sifresi,example@example.com,cpanel_sifresi,mail.example.com',
-    'user@example.com,yandex_uygulama_sifresi,user@example.com,cpanel_sifresi,',
-    'sales@example.com,yandex_uygulama_sifresi,sales@example.com,cpanel_sifresi,mail.example.com',
+    'example@example.com,yandex_app_password,example@example.com,cpanel_password,mail.example.com',
+    'user@example.com,yandex_app_password,user@example.com,cpanel_password,',
+    'sales@example.com,yandex_app_password,sales@example.com,cpanel_password,mail.example.com',
   ].join('\n') + '\n'
 }
 
-export function downloadCsvExample(filename = 'ornek-hesaplar.csv'): void {
+export function downloadCsvExample(filename = 'sample-accounts.csv'): void {
   const blob = new Blob([csvExampleContent()], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

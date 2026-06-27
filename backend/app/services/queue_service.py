@@ -24,11 +24,11 @@ def get_queue() -> Queue:
     return _queue
 
 
-def enqueue_migration(job_id: int) -> str:
+def enqueue_migration(job_uuid: str) -> str:
     queue = get_queue()
     rq_job = queue.enqueue(
         "app.worker.tasks.migrate_account",
-        job_id,
+        job_uuid,
         job_timeout="24h",
         result_ttl=86400,
         failure_ttl=86400,

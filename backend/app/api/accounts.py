@@ -14,6 +14,7 @@ from app.schemas import (
 )
 from app.deps import get_current_user
 from app.services.imap_test import test_imap_connection
+from app.services.job_sync import sync_active_jobs
 from app.services.settings_service import get_or_create_app_settings
 
 router = APIRouter(
@@ -33,36 +34,47 @@ def _derive_imap_host(cpanel_email: str, cpanel_imap_host: str) -> str:
     return ""
 
 
-def _latest_job_info(db: Session, account_id: int) -> tuple[int | None, str | None, int]:
+def _latest_job_info(db: Session, account_id: int) -> tuple[str | None, str | None, int, str | None]:
     active = (
         db.query(MigrationJob)
         .filter(
             MigrationJob.account_id == account_id,
             MigrationJob.status.in_(["pending", "running"]),
         )
-        .order_by(MigrationJob.id.desc())
+        .order_by(MigrationJob.created_at.desc())
         .first()
     )
     if active:
-        return active.id, active.status, active.messages_transferred or 0
+        return (
+            active.uuid,
+            active.status,
+            active.messages_transferred or 0,
+            active.error_message,
+        )
 
     latest = (
         db.query(MigrationJob)
         .filter(MigrationJob.account_id == account_id)
-        .order_by(MigrationJob.id.desc())
+        .order_by(MigrationJob.created_at.desc())
         .first()
     )
     if latest:
-        return latest.id, latest.status, latest.messages_transferred or 0
-    return None, None, 0
+        return (
+            latest.uuid,
+            latest.status,
+            latest.messages_transferred or 0,
+            latest.error_message,
+        )
+    return None, None, 0, None
 
 
 def _to_response(
     account: Account,
     *,
-    latest_job_id: int | None = None,
+    latest_job_uuid: str | None = None,
     latest_job_status: str | None = None,
     messages_transferred: int = 0,
+    latest_job_error: str | None = None,
 ) -> AccountResponse:
     return AccountResponse(
         id=account.id,
@@ -70,9 +82,10 @@ def _to_response(
         cpanel_email=account.cpanel_email,
         cpanel_imap_host=account.cpanel_imap_host,
         created_at=account.created_at,
-        latest_job_id=latest_job_id,
+        latest_job_uuid=latest_job_uuid,
         latest_job_status=latest_job_status,
         messages_transferred=messages_transferred,
+        latest_job_error=latest_job_error,
     )
 
 
@@ -157,16 +170,18 @@ def test_saved_account(account_id: int, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[AccountResponse])
 def list_accounts(db: Session = Depends(get_db)):
+    sync_active_jobs(db)
     accounts = db.query(Account).order_by(Account.id).all()
     result = []
     for account in accounts:
-        job_id, job_status, messages = _latest_job_info(db, account.id)
+        job_uuid, job_status, messages, job_error = _latest_job_info(db, account.id)
         result.append(
             _to_response(
                 account,
-                latest_job_id=job_id,
+                latest_job_uuid=job_uuid,
                 latest_job_status=job_status,
                 messages_transferred=messages,
+                latest_job_error=job_error,
             )
         )
     return result

@@ -28,9 +28,10 @@ export interface Account {
   cpanel_email: string
   cpanel_imap_host: string
   created_at: string
-  latest_job_id: number | null
+  latest_job_uuid: string | null
   latest_job_status: string | null
   messages_transferred: number
+  latest_job_error: string | null
 }
 
 export interface AccountCreate {
@@ -51,14 +52,14 @@ export interface FolderProgress {
 }
 
 export interface JobLog {
-  job_id: number
+  job_uuid: string
   log: string
   folders: FolderProgress[]
   messages_transferred: number
 }
 
 export interface Job {
-  id: number
+  uuid: string
   account_id: number
   status: string
   messages_transferred: number
@@ -69,6 +70,7 @@ export interface Job {
   created_at: string
   yandex_email: string | null
   cpanel_email: string | null
+  migrate_years: string | null
 }
 
 export interface LoginResponse {
@@ -104,8 +106,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (res.status === 401) {
     clearToken()
-    const err = await res.json().catch(() => ({ detail: 'Oturum süresi doldu' }))
-    throw new AuthError(err.detail || 'Giriş gerekli')
+    const err = await res.json().catch(() => ({ detail: 'Session expired' }))
+    throw new AuthError(err.detail || 'Sign in required')
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
@@ -145,12 +147,16 @@ export const api = {
     request<AccountTestResponse>(`/accounts/${id}/test`, { method: 'POST' }),
 
   getJobs: () => request<Job[]>('/jobs'),
-  startMigration: (accountIds?: number[]) =>
-    request<{ jobs_created: number; job_ids: number[] }>('/jobs/start', {
+  startMigration: (accountIds?: number[], years?: number[]) =>
+    request<{ jobs_created: number; job_uuids: string[] }>('/jobs/start', {
       method: 'POST',
-      body: JSON.stringify({ account_ids: accountIds ?? null }),
+      body: JSON.stringify({
+        account_ids: accountIds ?? null,
+        years: years && years.length > 0 ? years : null,
+      }),
     }),
-  retryJob: (id: number) => request<Job>(`/jobs/${id}/retry`, { method: 'POST' }),
-  deleteJob: (id: number) => request<void>(`/jobs/${id}`, { method: 'DELETE' }),
-  getJobLog: (id: number) => request<JobLog>(`/jobs/${id}/log`),
+  retryJob: (uuid: string) => request<Job>(`/jobs/${uuid}/retry`, { method: 'POST' }),
+  cancelJob: (uuid: string) => request<Job>(`/jobs/${uuid}/cancel`, { method: 'POST' }),
+  deleteJob: (uuid: string) => request<void>(`/jobs/${uuid}`, { method: 'DELETE' }),
+  getJobLog: (uuid: string) => request<JobLog>(`/jobs/${uuid}/log`),
 }

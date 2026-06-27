@@ -16,7 +16,7 @@ export default function SettingsPage() {
     try {
       const updated = await api.updateSettings(form)
       setForm(updated)
-      setMessage('Ayarlar kaydedildi.')
+      setMessage('Settings saved.')
     } catch (e) {
       setMessage(String(e))
     } finally {
@@ -24,27 +24,27 @@ export default function SettingsPage() {
     }
   }
 
-  if (!form) return <p>Yükleniyor...</p>
+  if (!form) return <p>Loading...</p>
 
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Ayarlar</h2>
+        <h2>Settings</h2>
         <button onClick={handleSave} disabled={saving}>
-          {saving ? 'Kaydediliyor...' : 'Kaydet'}
+          {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
 
       {message && <div className="alert">{message}</div>}
 
       <div className="card settings-form">
-        <h3>Yandex IMAP (Kaynak)</h3>
+        <h3>Yandex IMAP (source)</h3>
         <p className="hint">
-          Türkiye: imap.yandex.com.tr — Rusya dışı: imap.ya.ru — Port 993, SSL
+          Turkey: imap.yandex.com.tr — Outside Russia: imap.ya.ru — Port 993, SSL
         </p>
         <div className="form-grid">
           <label>
-            IMAP Sunucu
+            IMAP server
             <input
               value={form.yandex_imap_host}
               onChange={(e) => setForm({ ...form, yandex_imap_host: e.target.value })}
@@ -64,13 +64,13 @@ export default function SettingsPage() {
               checked={form.yandex_imap_ssl}
               onChange={(e) => setForm({ ...form, yandex_imap_ssl: e.target.checked })}
             />
-            SSL kullan
+            Use SSL
           </label>
         </div>
 
-        <h3>cPanel IMAP (Hedef — varsayılanlar)</h3>
+        <h3>cPanel IMAP (destination defaults)</h3>
         <p className="hint">
-          Her hesap için IMAP host CSV&apos;de ayrı girilir (ör. mail.example.com). Port genelde 993, SSL açık.
+          Each account has its own IMAP host in CSV (e.g. mail.example.com). Port is usually 993 with SSL.
         </p>
         <div className="form-grid">
           <label>
@@ -87,10 +87,10 @@ export default function SettingsPage() {
               checked={form.cpanel_imap_ssl}
               onChange={(e) => setForm({ ...form, cpanel_imap_ssl: e.target.checked })}
             />
-            SSL kullan
+            Use SSL
           </label>
           <label>
-            Paralel iş sayısı
+            Parallel jobs
             <input
               type="number"
               min={1}

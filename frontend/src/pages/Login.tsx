@@ -35,11 +35,11 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="card login-card">
-        <h2>Giriş</h2>
-        <p className="login-hint">E-posta taşıma paneline erişmek için giriş yapın.</p>
+        <h2>Sign in</h2>
+        <p className="login-hint">Sign in to access the email migration panel.</p>
         <form onSubmit={handleSubmit} className="login-form">
           <label>
-            Kullanıcı adı
+            Username
             <input
               type="text"
               value={username}
@@ -49,7 +49,7 @@ export default function Login() {
             />
           </label>
           <label>
-            Şifre
+            Password
             <input
               type="password"
               value={password}
@@ -60,7 +60,7 @@ export default function Login() {
           </label>
           {error && <div className="alert error">{error}</div>}
           <button type="submit" disabled={loading}>
-            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
       </div>

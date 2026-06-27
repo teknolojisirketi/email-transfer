@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+import uuid as uuid_lib
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 from app.config import settings
@@ -41,12 +42,14 @@ class MigrationJob(Base):
     __tablename__ = "migration_jobs"
 
     id = Column(Integer, primary_key=True)
+    uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid_lib.uuid4()))
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
     status = Column(String(50), nullable=False, default="pending")
     messages_transferred = Column(Integer, default=0)
     error_message = Column(Text, nullable=True)
     log_file = Column(String(512), nullable=True)
     rq_job_id = Column(String(255), nullable=True)
+    migrate_years = Column(String(64), nullable=True)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -63,6 +66,26 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """SQLite mevcut tablolara yeni kolon ekle."""
+    with engine.begin() as conn:
+        cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(migration_jobs)")).fetchall()
+        }
+        if "migrate_years" not in cols:
+            conn.execute(text("ALTER TABLE migration_jobs ADD COLUMN migrate_years VARCHAR(64)"))
+        if "uuid" not in cols:
+            conn.execute(text("ALTER TABLE migration_jobs ADD COLUMN uuid VARCHAR(36)"))
+            rows = conn.execute(text("SELECT id FROM migration_jobs WHERE uuid IS NULL")).fetchall()
+            for (row_id,) in rows:
+                conn.execute(
+                    text("UPDATE migration_jobs SET uuid = :uuid WHERE id = :id"),
+                    {"uuid": str(uuid_lib.uuid4()), "id": row_id},
+                )
 
 
 def get_db():

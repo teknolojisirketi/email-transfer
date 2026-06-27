@@ -1,22 +1,17 @@
-import { useEffect, useState } from 'react'
 import { Job } from '../api'
 import { formatElapsed } from '../utils/datetime'
 import { STATUS_LABELS } from '../utils/status'
 
 interface Props {
   job: Job
+  compact?: boolean
 }
 
-export default function JobProgress({ job }: Props) {
-  const [elapsed, setElapsed] = useState('')
-
-  useEffect(() => {
-    if (job.status !== 'running' || !job.started_at) return
-    const tick = () => setElapsed(formatElapsed(job.started_at!))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [job.status, job.started_at])
+export default function JobProgress({ job, compact = false }: Props) {
+  const elapsed =
+    job.status === 'running' && job.started_at
+      ? formatElapsed(job.started_at)
+      : ''
 
   return (
     <div className="job-progress">
@@ -24,17 +19,19 @@ export default function JobProgress({ job }: Props) {
         {STATUS_LABELS[job.status] || job.status}
       </span>
       {job.messages_transferred > 0 && (
-        <span className="msg-count">{job.messages_transferred} mesaj</span>
+        <span className="msg-count">{job.messages_transferred} messages</span>
       )}
-      {job.status === 'running' && (
+      {job.status === 'running' && elapsed && (
         <span className="elapsed">
           {elapsed}
-          <span className="running-hint"> — Kopyalama devam ediyor, büyük hesaplarda uzun sürebilir</span>
+          {!compact && (
+            <span className="running-hint"> — Copying in progress; large mailboxes may take a long time</span>
+          )}
         </span>
       )}
-      {job.error_message && (
-        <span className="error-text" title={job.error_message}>
-          {job.error_message.slice(0, 80)}
+      {job.status === 'failed' && (
+        <span className="error-text job-error-detail" title={job.error_message || undefined}>
+          {job.error_message || 'Unknown error'}
         </span>
       )}
     </div>
