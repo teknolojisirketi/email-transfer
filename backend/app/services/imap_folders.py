@@ -114,10 +114,6 @@ def build_unmapped_folder_args(
     folders: list[ImapFolder],
     parent: str = "Yandex",
 ) -> list[str]:
-    """
-    Eşleşmeyen (özel) klasörler için --f1f2 argümanları üret.
-    Hedef: INBOX.Yandex.{yandex_klasor_adi}
-    """
     args: list[str] = []
     for folder in folders:
         if _is_automap_folder(folder):
@@ -125,3 +121,13 @@ def build_unmapped_folder_args(
         dest = _to_cpanel_path(folder.name, parent)
         args.extend(["--f1f2", f"{folder.name}={dest}"])
     return args
+
+
+def filter_folders_by_names(
+    folders: list[ImapFolder],
+    selected_names: list[str] | None,
+) -> list[ImapFolder]:
+    if not selected_names:
+        return folders
+    selected = set(selected_names)
+    return [folder for folder in folders if folder.name in selected]

@@ -4,6 +4,7 @@ import JobLogModal from '../components/JobLogModal'
 import JobProgress from '../components/JobProgress'
 import { formatTrDateTime } from '../utils/datetime'
 import { shortUuid } from '../utils/uuid'
+import { formatFoldersLabel } from '../utils/folders'
 import { formatYearsLabel } from '../utils/years'
 
 export default function Jobs() {
@@ -95,6 +96,7 @@ export default function Jobs() {
                 <th>Yandex → cPanel</th>
                 <th>Status</th>
                 <th>Years</th>
+                <th>Folders</th>
                 <th>Started</th>
                 <th>Finished</th>
                 <th></th>
@@ -115,6 +117,9 @@ export default function Jobs() {
                     <JobProgress job={job} />
                   </td>
                   <td>{formatYearsLabel(job.migrate_years) ?? 'All'}</td>
+                  <td title={formatFoldersLabel(job.migrate_folders) ?? undefined}>
+                    {formatFoldersLabel(job.migrate_folders) ?? 'All'}
+                  </td>
                   <td>{formatTrDateTime(job.started_at)}</td>
                   <td>{formatTrDateTime(job.finished_at)}</td>
                   <td className="row-actions">

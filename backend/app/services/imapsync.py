@@ -11,7 +11,12 @@ from typing import Callable
 from app.config import settings
 from app.crypto import decrypt_password
 from app.database import Account, AppSettings
-from app.services.imap_folders import build_unmapped_folder_args, list_imap_folders
+from app.services.imap_folders import (
+    build_unmapped_folder_args,
+    filter_folders_by_names,
+    list_imap_folders,
+)
+from app.services.folder_filter import build_include_args, format_folders_label
 from app.services.job_cancel import (
     CANCELLED_BY_USER,
     kill_orphan_imapsync_for_account,
@@ -98,6 +103,7 @@ def run_imapsync(
     job_uuid: str,
     on_progress: Callable[[int], None] | None = None,
     migrate_years: list[int] | None = None,
+    migrate_folders: list[str] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> ImapSyncResult:
     logs_dir = Path(settings.logs_dir)
@@ -136,6 +142,8 @@ def run_imapsync(
                 password=yandex_password,
                 use_ssl=app_settings.yandex_imap_ssl,
             )
+            if migrate_folders:
+                yandex_folders = filter_folders_by_names(yandex_folders, migrate_folders)
             folder_args = build_unmapped_folder_args(yandex_folders, UNMAPPED_FOLDER_PARENT)
         except Exception as folder_exc:
             folder_args = []
@@ -152,6 +160,9 @@ def run_imapsync(
             )
 
         cmd = build_imapsync_command(account, app_settings, passfile1, passfile2, folder_args)
+        include_args = build_include_args(migrate_folders)
+        if include_args:
+            cmd.extend(include_args)
         year_args = build_search1_args(migrate_years)
         if year_args:
             cmd.extend(year_args)
@@ -162,6 +173,11 @@ def run_imapsync(
 
             label = format_years_label(migrate_years)
             header_lines.append(f"=== Year filter: {label} ===\n")
+        if migrate_folders:
+            label = format_folders_label(migrate_folders)
+            header_lines.append(f"=== Selected folders: {label} ===\n")
+            for folder_name in migrate_folders:
+                header_lines.append(f"  - {folder_name}\n")
         if folder_list_error:
             header_lines.append(f"=== Folder list warning: {folder_list_error} ===\n")
         if folder_args:

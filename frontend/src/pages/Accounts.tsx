@@ -4,6 +4,7 @@ import { api, Account, AccountCreate, AccountTestResponse } from '../api'
 import { formatTrDateTime } from '../utils/datetime'
 import { STATUS_LABELS } from '../utils/status'
 import CsvImport from '../components/CsvImport'
+import FolderPickerModal from '../components/FolderPickerModal'
 import ManualAccountForm from '../components/ManualAccountForm'
 import TestResults from '../components/TestResults'
 import { availableYearOptions } from '../utils/years'
@@ -30,6 +31,7 @@ export default function Accounts() {
   const [testingId, setTestingId] = useState<number | null>(null)
   const [rowTestResult, setRowTestResult] = useState<AccountTestResponse | null>(null)
   const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set())
+  const [folderPickerAccount, setFolderPickerAccount] = useState<Account | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -285,6 +287,13 @@ export default function Accounts() {
                     >
                       {testingId === a.id ? '...' : 'Test'}
                     </button>
+                    <button
+                      className="small"
+                      onClick={() => setFolderPickerAccount(a)}
+                      disabled={a.latest_job_status === 'pending' || a.latest_job_status === 'running'}
+                    >
+                      Folders
+                    </button>
                     <button className="danger small" onClick={() => handleDelete(a.id)}>
                       Delete
                     </button>
@@ -296,6 +305,18 @@ export default function Accounts() {
             </div>
           )}
         </>
+      )}
+
+      {folderPickerAccount && (
+        <FolderPickerModal
+          account={folderPickerAccount}
+          selectedYears={[...selectedYears].sort((a, b) => a - b)}
+          onClose={() => setFolderPickerAccount(null)}
+          onStarted={(msg) => {
+            setMessage(msg)
+            load()
+          }}
+        />
       )}
     </div>
   )

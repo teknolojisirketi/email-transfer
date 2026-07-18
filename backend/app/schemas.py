@@ -96,6 +96,17 @@ class AccountTestResponse(BaseModel):
     overall_success: bool
 
 
+class AccountFolderItem(BaseModel):
+    name: str
+    is_standard: bool
+
+
+class AccountFoldersResponse(BaseModel):
+    account_id: int
+    yandex_email: str
+    folders: list[AccountFolderItem]
+
+
 class JobResponse(BaseModel):
     uuid: str
     account_id: int
@@ -104,6 +115,7 @@ class JobResponse(BaseModel):
     error_message: Optional[str]
     log_file: Optional[str]
     migrate_years: Optional[str] = None
+    migrate_folders: Optional[str] = None
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     created_at: datetime
@@ -136,6 +148,7 @@ class JobLogResponse(BaseModel):
 class StartMigrationRequest(BaseModel):
     account_ids: list[int] | None = None
     years: list[int] | None = None
+    folders: list[str] | None = None
 
 
 class StartMigrationResponse(BaseModel):

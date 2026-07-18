@@ -50,6 +50,7 @@ class MigrationJob(Base):
     log_file = Column(String(512), nullable=True)
     rq_job_id = Column(String(255), nullable=True)
     migrate_years = Column(String(64), nullable=True)
+    migrate_folders = Column(Text, nullable=True)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -78,6 +79,8 @@ def _ensure_columns() -> None:
         }
         if "migrate_years" not in cols:
             conn.execute(text("ALTER TABLE migration_jobs ADD COLUMN migrate_years VARCHAR(64)"))
+        if "migrate_folders" not in cols:
+            conn.execute(text("ALTER TABLE migration_jobs ADD COLUMN migrate_folders TEXT"))
         if "uuid" not in cols:
             conn.execute(text("ALTER TABLE migration_jobs ADD COLUMN uuid VARCHAR(36)"))
             rows = conn.execute(text("SELECT id FROM migration_jobs WHERE uuid IS NULL")).fetchall()

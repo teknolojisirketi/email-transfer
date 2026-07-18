@@ -18,6 +18,7 @@ from app.services.job_log import append_cancelled_to_job_log, delete_job_log
 from app.services.job_sync import read_job_log_content, sync_active_jobs, sync_job_status
 from app.services.log_parser import parse_folder_progress
 from app.services.queue_service import cancel_migration, enqueue_migration
+from app.services.folder_filter import folders_to_storage, normalize_folders
 from app.services.year_filter import normalize_years, years_to_storage
 
 router = APIRouter(
@@ -43,6 +44,7 @@ def _to_response(job: MigrationJob, account: Account | None = None) -> JobRespon
         error_message=job.error_message,
         log_file=job.log_file,
         migrate_years=job.migrate_years,
+        migrate_folders=job.migrate_folders,
         started_at=job.started_at,
         finished_at=job.finished_at,
         created_at=job.created_at,
@@ -78,6 +80,8 @@ def start_migration(
 
     years = normalize_years(payload.years if payload else None)
     migrate_years = years_to_storage(years)
+    folders = normalize_folders(payload.folders if payload else None)
+    migrate_folders = folders_to_storage(folders)
 
     job_uuids = []
     for account in accounts:
@@ -96,6 +100,7 @@ def start_migration(
             account_id=account.id,
             status="pending",
             migrate_years=migrate_years,
+            migrate_folders=migrate_folders,
         )
         db.add(job)
         db.flush()
@@ -118,6 +123,7 @@ def retry_job(job_uuid: str, db: Session = Depends(get_db)):
         account_id=job.account_id,
         status="pending",
         migrate_years=job.migrate_years,
+        migrate_folders=job.migrate_folders,
     )
     db.add(new_job)
     db.flush()

@@ -58,6 +58,17 @@ export interface JobLog {
   messages_transferred: number
 }
 
+export interface AccountFolderItem {
+  name: string
+  is_standard: boolean
+}
+
+export interface AccountFoldersResponse {
+  account_id: number
+  yandex_email: string
+  folders: AccountFolderItem[]
+}
+
 export interface Job {
   uuid: string
   account_id: number
@@ -71,6 +82,7 @@ export interface Job {
   yandex_email: string | null
   cpanel_email: string | null
   migrate_years: string | null
+  migrate_folders: string | null
 }
 
 export interface LoginResponse {
@@ -145,14 +157,17 @@ export const api = {
     request<AccountTestResponse>('/accounts/test', { method: 'POST', body: JSON.stringify(data) }),
   testSavedAccount: (id: number) =>
     request<AccountTestResponse>(`/accounts/${id}/test`, { method: 'POST' }),
+  getAccountFolders: (id: number) =>
+    request<AccountFoldersResponse>(`/accounts/${id}/folders`),
 
   getJobs: () => request<Job[]>('/jobs'),
-  startMigration: (accountIds?: number[], years?: number[]) =>
+  startMigration: (accountIds?: number[], years?: number[], folders?: string[]) =>
     request<{ jobs_created: number; job_uuids: string[] }>('/jobs/start', {
       method: 'POST',
       body: JSON.stringify({
         account_ids: accountIds ?? null,
         years: years && years.length > 0 ? years : null,
+        folders: folders && folders.length > 0 ? folders : null,
       }),
     }),
   retryJob: (uuid: string) => request<Job>(`/jobs/${uuid}/retry`, { method: 'POST' }),

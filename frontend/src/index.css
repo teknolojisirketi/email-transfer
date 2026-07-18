@@ -323,6 +323,76 @@ th {
   max-height: 90vh;
 }
 
+.folder-modal {
+  width: min(560px, 92vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-modal-status {
+  margin: 0.5rem 0 1rem;
+}
+
+.folder-modal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.folder-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: #fafafa;
+}
+
+.folder-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.folder-list-item:hover {
+  background: #f0f4ff;
+}
+
+.folder-list-name {
+  flex: 1;
+  word-break: break-word;
+}
+
+.folder-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.folder-modal-footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .log-msg-total {
   font-size: 0.85rem;
   font-weight: normal;

@@ -5,6 +5,8 @@ from app.crypto import decrypt_password, encrypt_password
 from app.database import Account, MigrationJob, get_db
 from app.schemas import (
     AccountCreate,
+    AccountFolderItem,
+    AccountFoldersResponse,
     AccountResponse,
     AccountTestResponse,
     AccountUpdate,
@@ -13,6 +15,7 @@ from app.schemas import (
     ImapTestResultResponse,
 )
 from app.deps import get_current_user
+from app.services.imap_folders import _is_automap_folder, list_imap_folders
 from app.services.imap_test import test_imap_connection
 from app.services.job_sync import sync_active_jobs
 from app.services.settings_service import get_or_create_app_settings
@@ -165,6 +168,35 @@ def test_saved_account(account_id: int, db: Session = Depends(get_db)):
         cpanel_email=account.cpanel_email,
         cpanel_password=decrypt_password(account.cpanel_password_enc),
         cpanel_imap_host=account.cpanel_imap_host,
+    )
+
+
+@router.get("/{account_id}/folders", response_model=AccountFoldersResponse)
+def list_account_folders(account_id: int, db: Session = Depends(get_db)):
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    app_settings = get_or_create_app_settings()
+    try:
+        folders = list_imap_folders(
+            host=app_settings.yandex_imap_host,
+            port=app_settings.yandex_imap_port,
+            email=account.yandex_email,
+            password=decrypt_password(account.yandex_password_enc),
+            use_ssl=app_settings.yandex_imap_ssl,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not list folders: {exc}") from exc
+
+    folders.sort(key=lambda item: (not _is_automap_folder(item), item.name.lower()))
+    return AccountFoldersResponse(
+        account_id=account.id,
+        yandex_email=account.yandex_email,
+        folders=[
+            AccountFolderItem(name=folder.name, is_standard=_is_automap_folder(folder))
+            for folder in folders
+        ],
     )
 
 

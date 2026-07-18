@@ -11,6 +11,7 @@ from app.services.job_cancel import (
 )
 from app.services.job_log import append_cancelled_to_job_log, job_log_path
 from app.services.settings_service import get_or_create_app_settings
+from app.services.folder_filter import storage_to_folders
 from app.services.year_filter import storage_to_years
 
 
@@ -95,6 +96,7 @@ def migrate_account(job_uuid: str) -> dict:
             job_uuid,
             on_progress=on_progress,
             migrate_years=storage_to_years(job.migrate_years),
+            migrate_folders=storage_to_folders(job.migrate_folders),
             should_cancel=make_cancel_checker(job_uuid),
         )
 
