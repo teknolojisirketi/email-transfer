@@ -1,0 +1,13 @@
+[tool.ruff]
+# The worker container runs this same app code on the imapsync base image's
+# Python 3.9 (see Dockerfile.worker); the api container uses 3.12. Target the
+# lowest common version so ruff's UP rule doesn't suggest 3.10+-only syntax.
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

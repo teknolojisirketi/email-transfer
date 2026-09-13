@@ -1,4 +1,4 @@
-import { AccountCreate } from './api'
+import { AccountCreate } from '../api'
 
 const CSV_HEADERS = [
   'yandex_email',
@@ -71,12 +71,14 @@ export function csvTemplate(): string {
 }
 
 export function csvExampleContent(): string {
-  return [
-    CSV_HEADERS.join(','),
-    'example@example.com,yandex_app_password,example@example.com,cpanel_password,mail.example.com',
-    'user@example.com,yandex_app_password,user@example.com,cpanel_password,',
-    'sales@example.com,yandex_app_password,sales@example.com,cpanel_password,mail.example.com',
-  ].join('\n') + '\n'
+  return (
+    [
+      CSV_HEADERS.join(','),
+      'example@example.com,yandex_app_password,example@example.com,cpanel_password,mail.example.com',
+      'user@example.com,yandex_app_password,user@example.com,cpanel_password,',
+      'sales@example.com,yandex_app_password,sales@example.com,cpanel_password,mail.example.com',
+    ].join('\n') + '\n'
+  )
 }
 
 export function downloadCsvExample(filename = 'sample-accounts.csv'): void {

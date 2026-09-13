@@ -64,7 +64,9 @@ def _log_is_stale(job_uuid: str) -> bool:
     content = read_log_text(job_uuid)
     if not log_matches_job(job_uuid, content):
         return False
-    stale_minutes = STALE_PARSING_MINUTES if _is_parsing_headers_phase(content) else STALE_LOG_MINUTES
+    stale_minutes = (
+        STALE_PARSING_MINUTES if _is_parsing_headers_phase(content) else STALE_LOG_MINUTES
+    )
     mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
     age_seconds = (datetime.now(timezone.utc) - mtime).total_seconds()
     return age_seconds > stale_minutes * 60

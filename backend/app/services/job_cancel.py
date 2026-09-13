@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from app.database import MigrationJob, SessionLocal
 

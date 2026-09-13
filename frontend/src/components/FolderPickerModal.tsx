@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api, Account, AccountFolderItem } from '../api'
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from './ui/dialog'
+import { Button } from './ui/button'
+import { Badge } from './ui/badge'
 
 interface Props {
   account: Account
@@ -62,16 +65,12 @@ export default function FolderPickerModal({ account, selectedYears, onClose, onS
     setStarting(true)
     setError('')
     try {
-      const folderList = folders
-        .map((folder) => folder.name)
-        .filter((name) => selected.has(name))
+      const folderList = folders.map((folder) => folder.name).filter((name) => selected.has(name))
       const years = selectedYears.length > 0 ? selectedYears : undefined
       const result = await api.startMigration([account.id], years, folderList)
       const yearHint = years?.length ? `, years: ${years.join(', ')}` : ''
       const folderHint =
-        folderList.length === folders.length
-          ? 'all folders'
-          : `${folderList.length} folder(s)`
+        folderList.length === folders.length ? 'all folders' : `${folderList.length} folder(s)`
       onStarted(
         result.jobs_created > 0
           ? `Migration queued for ${account.yandex_email} (${folderHint}${yearHint})`
@@ -86,59 +85,58 @@ export default function FolderPickerModal({ account, selectedYears, onClose, onS
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal folder-modal card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Select folders — {account.yandex_email}</h3>
-          <button className="secondary small" onClick={onClose}>
-            Close
-          </button>
-        </div>
-
+    <Dialog open onClose={onClose} className="max-w-lg">
+      <DialogHeader title={`Select folders — ${account.yandex_email}`} onClose={onClose} />
+      <DialogBody className="flex flex-col gap-3">
         {loading ? (
-          <p className="folder-modal-status">Loading folders from Yandex...</p>
+          <p className="text-sm text-muted-foreground">Loading folders from Yandex...</p>
         ) : error && folders.length === 0 ? (
-          <p className="error-text folder-modal-status">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         ) : (
           <>
-            <div className="folder-modal-toolbar">
-              <span className="muted">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">
                 {selected.size} / {folders.length} selected
               </span>
-              <div className="folder-modal-actions">
-                <button type="button" className="small secondary" onClick={() => setAll(true)}>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setAll(true)}>
                   Select all
-                </button>
-                <button type="button" className="small secondary" onClick={() => setAll(false)}>
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setAll(false)}>
                   Clear
-                </button>
+                </Button>
               </div>
             </div>
 
-            <div className="folder-list">
+            <div className="flex max-h-72 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-muted/30 p-2">
               {folders.map((folder) => (
-                <label key={folder.name} className="folder-list-item">
+                <label
+                  key={folder.name}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary"
+                >
                   <input
                     type="checkbox"
+                    className="h-4 w-4 accent-primary"
                     checked={selected.has(folder.name)}
                     onChange={() => toggleFolder(folder.name)}
                   />
-                  <span className="folder-list-name">{folder.name}</span>
-                  {folder.is_standard && <span className="folder-tag">standard</span>}
+                  <span className="min-w-0 flex-1 break-words text-sm">{folder.name}</span>
+                  {folder.is_standard && <Badge variant="secondary">standard</Badge>}
                 </label>
               ))}
             </div>
 
-            {error && <p className="error-text">{error}</p>}
-
-            <div className="folder-modal-footer">
-              <button onClick={handleStart} disabled={starting || selected.size === 0}>
-                {starting ? 'Starting...' : 'Start migration'}
-              </button>
-            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </>
         )}
-      </div>
-    </div>
+      </DialogBody>
+      {!loading && folders.length > 0 && (
+        <DialogFooter>
+          <Button onClick={handleStart} disabled={starting || selected.size === 0}>
+            {starting ? 'Starting...' : 'Start migration'}
+          </Button>
+        </DialogFooter>
+      )}
+    </Dialog>
   )
 }

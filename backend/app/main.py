@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import accounts, auth, jobs, settings as settings_api
+from app.api import accounts, auth, jobs
+from app.api import settings as settings_api
 from app.database import init_db
 from app.services.settings_service import ensure_logs_dir, get_or_create_app_settings
 

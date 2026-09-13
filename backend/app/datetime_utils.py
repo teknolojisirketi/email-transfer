@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 
-def serialize_utc_datetime(value: Optional[datetime]) -> Optional[str]:
+def serialize_utc_datetime(value: datetime | None) -> str | None:
     """Serialize naive UTC datetimes from SQLite with explicit Z suffix."""
     if value is None:
         return None

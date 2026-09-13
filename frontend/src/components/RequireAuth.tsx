@@ -24,8 +24,8 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="app">
-        <p className="loading-center">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        Loading...
       </div>
     )
   }

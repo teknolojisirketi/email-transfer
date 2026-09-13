@@ -5,40 +5,44 @@ import re
 from dataclasses import dataclass
 
 # imapsync --automap ile eşleşen standart klasörler (Yandex Rusça adlar dahil)
-AUTOMAP_FOLDER_NAMES = frozenset({
-    "INBOX",
-    "Inbox",
-    "Sent",
-    "Sent Messages",
-    "Sent Items",
-    "Drafts",
-    "Draft",
-    "Trash",
-    "Deleted",
-    "Deleted Items",
-    "Deleted Messages",
-    "Junk",
-    "Spam",
-    "Bulk Mail",
-    "Archive",
-    "Отправленные",
-    "Черновики",
-    "Удалённые",
-    "Удаленные",
-    "Спам",
-    "Входящие",
-    "Архив",
-})
+AUTOMAP_FOLDER_NAMES = frozenset(
+    {
+        "INBOX",
+        "Inbox",
+        "Sent",
+        "Sent Messages",
+        "Sent Items",
+        "Drafts",
+        "Draft",
+        "Trash",
+        "Deleted",
+        "Deleted Items",
+        "Deleted Messages",
+        "Junk",
+        "Spam",
+        "Bulk Mail",
+        "Archive",
+        "Отправленные",
+        "Черновики",
+        "Удалённые",
+        "Удаленные",
+        "Спам",
+        "Входящие",
+        "Архив",
+    }
+)
 
-SPECIAL_USE_FLAGS = frozenset({
-    r"\inbox",
-    r"\sent",
-    r"\drafts",
-    r"\trash",
-    r"\junk",
-    r"\archive",
-    r"\all",
-})
+SPECIAL_USE_FLAGS = frozenset(
+    {
+        r"\inbox",
+        r"\sent",
+        r"\drafts",
+        r"\trash",
+        r"\junk",
+        r"\archive",
+        r"\all",
+    }
+)
 
 
 @dataclass

@@ -32,6 +32,10 @@ export interface Account {
   latest_job_status: string | null
   messages_transferred: number
   latest_job_error: string | null
+  last_test_success: boolean | null
+  last_test_at: string | null
+  last_test_yandex_message: string | null
+  last_test_cpanel_message: string | null
 }
 
 export interface AccountCreate {
@@ -95,6 +99,11 @@ export interface UserResponse {
   username: string
 }
 
+export interface BulkDeleteResult {
+  deleted: number
+  skipped: number
+}
+
 export class AuthError extends Error {
   constructor(message: string) {
     super(message)
@@ -153,12 +162,16 @@ export const api = {
     request<Account>(`/accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAccount: (id: number) => request<void>(`/accounts/${id}`, { method: 'DELETE' }),
   deleteAllAccounts: () => request<void>('/accounts', { method: 'DELETE' }),
+  bulkDeleteAccounts: (ids: number[]) =>
+    request<BulkDeleteResult>('/accounts/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
   testAccount: (data: AccountCreate) =>
     request<AccountTestResponse>('/accounts/test', { method: 'POST', body: JSON.stringify(data) }),
   testSavedAccount: (id: number) =>
     request<AccountTestResponse>(`/accounts/${id}/test`, { method: 'POST' }),
-  getAccountFolders: (id: number) =>
-    request<AccountFoldersResponse>(`/accounts/${id}/folders`),
+  getAccountFolders: (id: number) => request<AccountFoldersResponse>(`/accounts/${id}/folders`),
 
   getJobs: () => request<Job[]>('/jobs'),
   startMigration: (accountIds?: number[], years?: number[], folders?: string[]) =>
@@ -173,5 +186,10 @@ export const api = {
   retryJob: (uuid: string) => request<Job>(`/jobs/${uuid}/retry`, { method: 'POST' }),
   cancelJob: (uuid: string) => request<Job>(`/jobs/${uuid}/cancel`, { method: 'POST' }),
   deleteJob: (uuid: string) => request<void>(`/jobs/${uuid}`, { method: 'DELETE' }),
+  bulkDeleteJobs: (uuids: string[]) =>
+    request<BulkDeleteResult>('/jobs/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ uuids }),
+    }),
   getJobLog: (uuid: string) => request<JobLog>(`/jobs/${uuid}/log`),
 }

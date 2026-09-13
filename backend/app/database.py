@@ -1,7 +1,17 @@
-from datetime import datetime, timezone
 import uuid as uuid_lib
+from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine, text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 from app.config import settings
@@ -21,7 +31,11 @@ class AppSettings(Base):
     cpanel_imap_port = Column(Integer, nullable=False, default=993)
     cpanel_imap_ssl = Column(Boolean, nullable=False, default=True)
     worker_concurrency = Column(Integer, nullable=False, default=2)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class Account(Base):
@@ -34,6 +48,10 @@ class Account(Base):
     cpanel_password_enc = Column(Text, nullable=False)
     cpanel_imap_host = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_test_success = Column(Boolean, nullable=True)
+    last_test_at = Column(DateTime, nullable=True)
+    last_test_yandex_message = Column(Text, nullable=True)
+    last_test_cpanel_message = Column(Text, nullable=True)
 
     jobs = relationship("MigrationJob", back_populates="account", cascade="all, delete-orphan")
 
@@ -74,8 +92,7 @@ def _ensure_columns() -> None:
     """SQLite mevcut tablolara yeni kolon ekle."""
     with engine.begin() as conn:
         cols = {
-            row[1]
-            for row in conn.execute(text("PRAGMA table_info(migration_jobs)")).fetchall()
+            row[1] for row in conn.execute(text("PRAGMA table_info(migration_jobs)")).fetchall()
         }
         if "migrate_years" not in cols:
             conn.execute(text("ALTER TABLE migration_jobs ADD COLUMN migrate_years VARCHAR(64)"))
@@ -89,6 +106,18 @@ def _ensure_columns() -> None:
                     text("UPDATE migration_jobs SET uuid = :uuid WHERE id = :id"),
                     {"uuid": str(uuid_lib.uuid4()), "id": row_id},
                 )
+
+        account_cols = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(accounts)")).fetchall()
+        }
+        if "last_test_success" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN last_test_success BOOLEAN"))
+        if "last_test_at" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN last_test_at DATETIME"))
+        if "last_test_yandex_message" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN last_test_yandex_message TEXT"))
+        if "last_test_cpanel_message" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN last_test_cpanel_message TEXT"))
 
 
 def get_db():

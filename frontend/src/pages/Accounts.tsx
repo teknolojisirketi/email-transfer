@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
+import { FolderCog, Trash2 } from 'lucide-react'
 import { api, Account, AccountCreate, AccountTestResponse } from '../api'
 import { formatTrDateTime } from '../utils/datetime'
 import { STATUS_LABELS } from '../utils/status'
@@ -7,8 +9,21 @@ import CsvImport from '../components/CsvImport'
 import FolderPickerModal from '../components/FolderPickerModal'
 import ManualAccountForm from '../components/ManualAccountForm'
 import TestResults from '../components/TestResults'
+import { ConfirmDialog, ConfirmDialogState } from '../components/ConfirmDialog'
 import { availableYearOptions } from '../utils/years'
 import { shortUuid } from '../utils/uuid'
+import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeadCell,
+  TableRow,
+} from '../components/ui/table'
+import { cn } from '../lib/utils'
 
 type AccountTab = 'all' | 'pending' | 'running' | 'completed' | 'failed'
 
@@ -26,19 +41,19 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [activeTab, setActiveTab] = useState<AccountTab>('all')
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [testingId, setTestingId] = useState<number | null>(null)
+  const [testingIds, setTestingIds] = useState<Set<number>>(new Set())
   const [rowTestResult, setRowTestResult] = useState<AccountTestResponse | null>(null)
   const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set())
   const [folderPickerAccount, setFolderPickerAccount] = useState<Account | null>(null)
+  const [confirmState, setConfirmState] = useState<ConfirmDialogState | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       setAccounts(await api.getAccounts())
     } catch (e) {
-      setMessage(String(e))
+      toast.error(String(e))
     } finally {
       setLoading(false)
     }
@@ -53,23 +68,26 @@ export default function Accounts() {
   const handleImport = async (items: AccountCreate[]) => {
     try {
       const result = await api.bulkImport(items)
-      setMessage(`${result.imported} account(s) imported${result.skipped ? `, ${result.skipped} skipped` : ''}`)
+      toast.success(
+        `${result.imported} account(s) imported${result.skipped ? `, ${result.skipped} skipped` : ''}`,
+      )
       load()
     } catch (e) {
-      setMessage(String(e))
+      toast.error(String(e))
     }
   }
 
   const handleStartAll = async () => {
     try {
       const ids = selected.size > 0 ? Array.from(selected) : undefined
-      const years = selectedYears.size > 0 ? Array.from(selectedYears).sort((a, b) => a - b) : undefined
+      const years =
+        selectedYears.size > 0 ? Array.from(selectedYears).sort((a, b) => a - b) : undefined
       const result = await api.startMigration(ids, years)
       const yearHint = years?.length ? ` (${years.join(', ')})` : ' (all years)'
-      setMessage(`${result.jobs_created} job(s) queued${yearHint}`)
+      toast.success(`${result.jobs_created} job(s) queued${yearHint}`)
       load()
     } catch (e) {
-      setMessage(String(e))
+      toast.error(String(e))
     }
   }
 
@@ -82,29 +100,117 @@ export default function Accounts() {
     })
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this account?')) return
-    await api.deleteAccount(id)
-    if (rowTestResult) setRowTestResult(null)
-    load()
+  const handleDelete = (id: number) => {
+    setConfirmState({
+      title: 'Delete this account?',
+      description: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onConfirm: async () => {
+        await api.deleteAccount(id)
+        if (rowTestResult) setRowTestResult(null)
+        load()
+      },
+    })
+  }
+
+  const handleBulkDelete = () => {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    setConfirmState({
+      title: `Delete ${ids.length} account(s)?`,
+      description: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onConfirm: async () => {
+        const result = await api.bulkDeleteAccounts(ids)
+        toast.success(`${result.deleted} account(s) deleted`)
+        setSelected(new Set())
+        if (rowTestResult) setRowTestResult(null)
+        load()
+      },
+    })
+  }
+
+  const applyTestResult = (id: number, result: AccountTestResponse) => {
+    setAccounts((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              last_test_success: result.overall_success,
+              last_test_at: new Date().toISOString(),
+              last_test_yandex_message: result.yandex.message,
+              last_test_cpanel_message: result.cpanel.message,
+            }
+          : a,
+      ),
+    )
   }
 
   const handleTestRow = async (id: number) => {
-    setTestingId(id)
+    setTestingIds((prev) => new Set(prev).add(id))
     setRowTestResult(null)
-    setMessage('')
     try {
       const result = await api.testSavedAccount(id)
+      applyTestResult(id, result)
       setRowTestResult(result)
-      setMessage(
-        result.overall_success
-          ? `Account #${id}: both connections succeeded`
-          : `Account #${id}: connection test failed`,
-      )
+      if (result.overall_success) {
+        toast.success(`Account #${id}: both connections succeeded`)
+      } else {
+        toast.error(`Account #${id}: connection test failed`)
+      }
     } catch (e) {
-      setMessage(String(e))
+      toast.error(String(e))
     } finally {
-      setTestingId(null)
+      setTestingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
+  const handleBulkTest = async () => {
+    const candidateIds = selected.size > 0 ? Array.from(selected) : filteredAccounts.map((a) => a.id)
+    const accountsById = new Map(accounts.map((a) => [a.id, a]))
+    // Already-confirmed (last test passed) accounts are skipped — no need to re-test them.
+    const ids = candidateIds.filter((id) => accountsById.get(id)?.last_test_success !== true)
+    const alreadyConfirmed = candidateIds.length - ids.length
+    if (ids.length === 0) {
+      toast.success('Selected account(s) already passed a previous test — nothing to test.')
+      return
+    }
+    setTestingIds((prev) => new Set([...prev, ...ids]))
+    let passed = 0
+    let failed = 0
+    const queue = [...ids]
+    const worker = async () => {
+      while (queue.length > 0) {
+        const id = queue.shift()
+        if (id === undefined) break
+        try {
+          const result = await api.testSavedAccount(id)
+          applyTestResult(id, result)
+          if (result.overall_success) passed++
+          else failed++
+        } catch {
+          failed++
+        } finally {
+          setTestingIds((prev) => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(3, ids.length) }, worker))
+    const skipHint = alreadyConfirmed > 0 ? `, ${alreadyConfirmed} already confirmed & skipped` : ''
+    if (failed > 0) {
+      toast.error(`Test finished: ${passed} passed, ${failed} failed${skipHint}`)
+    } else {
+      toast.success(`Test finished: all ${passed} passed${skipHint}`)
     }
   }
 
@@ -153,21 +259,49 @@ export default function Accounts() {
   }
 
   return (
-    <div className="page">
-      <div className="accounts-toolbar card">
-        <div className="accounts-toolbar-top">
-          <h2>Accounts</h2>
-          <button onClick={handleStartAll} disabled={accounts.length === 0}>
-            {selected.size > 0 ? `Migrate selected (${selected.size})` : 'Migrate all'}
-          </button>
-        </div>
-        <div className="year-filter-bar">
-          <span className="year-filter-label">Years to migrate</span>
-          <div className="year-filter-options">
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <h2 className="text-xl font-semibold">Accounts</h2>
+          <div className="flex gap-2">
+            {selected.size > 0 && (
+              <Button variant="destructive" onClick={handleBulkDelete}>
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete selected ({selected.size})
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              onClick={handleBulkTest}
+              disabled={accounts.length === 0 || testingIds.size > 0}
+            >
+              {testingIds.size > 0
+                ? 'Testing...'
+                : selected.size > 0
+                  ? `Test selected (${selected.size})`
+                  : 'Test all'}
+            </Button>
+            <Button onClick={handleStartAll} disabled={accounts.length === 0}>
+              {selected.size > 0 ? `Migrate selected (${selected.size})` : 'Migrate all'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="border-t border-border pt-4">
+          <span className="mb-2 block text-sm font-semibold">Years to migrate</span>
+          <div className="flex flex-wrap gap-2">
             {YEAR_OPTIONS.map((year) => (
-              <label key={year} className="year-chip">
+              <label
+                key={year}
+                className={cn(
+                  'flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium select-none',
+                  selectedYears.has(year)
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-muted/40 text-foreground',
+                )}
+              >
                 <input
                   type="checkbox"
+                  className="h-4 w-4 accent-primary"
                   checked={selectedYears.has(year)}
                   onChange={() => toggleYear(year)}
                 />
@@ -175,134 +309,204 @@ export default function Accounts() {
               </label>
             ))}
           </div>
-          <p className="year-filter-hint">
+          <p className="mt-3 text-sm text-muted-foreground">
             {selectedYears.size > 0
               ? `Selected: ${[...selectedYears].sort((a, b) => a - b).join(', ')}`
               : 'If none selected, all mail will be migrated'}
           </p>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {message && <div className="alert">{message}</div>}
-
-      <ManualAccountForm onSaved={(msg) => { setMessage(msg); load() }} />
+      <ManualAccountForm
+        onSaved={(msg) => {
+          toast.success(msg)
+          load()
+        }}
+      />
 
       <CsvImport onImport={handleImport} />
 
       {rowTestResult && (
-        <div className="card">
-          <h3>Latest test result</h3>
-          <TestResults result={rowTestResult} />
-        </div>
+        <Card>
+          <CardHeader>
+            <h3 className="text-base font-semibold">Latest test result</h3>
+          </CardHeader>
+          <CardContent>
+            <TestResults result={rowTestResult} />
+          </CardContent>
+        </Card>
       )}
 
       {loading && accounts.length === 0 ? (
-        <p>Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       ) : accounts.length === 0 ? (
-        <p className="empty">{emptyTabMessage.all}</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{emptyTabMessage.all}</p>
       ) : (
         <>
-          <div className="filter-tabs">
+          <div className="flex flex-wrap gap-2">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                className={`filter-tab${activeTab === tab.id ? ' active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
+                  activeTab === tab.id
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:border-muted-foreground/40',
+                )}
               >
                 {tab.label}
-                <span className="tab-count">{tabCounts[tab.id]}</span>
+                <span
+                  className={cn(
+                    'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold',
+                    activeTab === tab.id ? 'bg-white/25' : 'bg-muted',
+                  )}
+                >
+                  {tabCounts[tab.id]}
+                </span>
               </button>
             ))}
           </div>
 
           {filteredAccounts.length === 0 ? (
-            <p className="empty">{emptyTabMessage[activeTab]}</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {emptyTabMessage[activeTab]}
+            </p>
           ) : (
-            <div className="table-wrap card">
-              <table>
-                <thead>
-                  <tr>
-                    <th>
+            <Card className="overflow-hidden py-0">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeadCell className="w-8">
                       <input
                         type="checkbox"
+                        className="h-4 w-4 accent-primary"
                         checked={
                           filteredAccounts.length > 0 &&
                           filteredAccounts.every((a) => selected.has(a.id))
                         }
                         onChange={toggleAll}
                       />
-                    </th>
-                    <th>Yandex email</th>
-                    <th>cPanel email</th>
-                    <th>cPanel IMAP host</th>
-                    <th>Migration</th>
-                    <th>Added</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHeadCell>
+                    <TableHeadCell>Yandex email</TableHeadCell>
+                    <TableHeadCell>cPanel email</TableHeadCell>
+                    <TableHeadCell>cPanel IMAP host</TableHeadCell>
+                    <TableHeadCell>Test</TableHeadCell>
+                    <TableHeadCell>Migration</TableHeadCell>
+                    <TableHeadCell>Added</TableHeadCell>
+                    <TableHeadCell />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {filteredAccounts.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(a.id)}
-                      onChange={() => toggleSelect(a.id)}
-                    />
-                  </td>
-                  <td>{a.yandex_email}</td>
-                  <td>{a.cpanel_email}</td>
-                  <td>{a.cpanel_imap_host}</td>
-                  <td>
-                    {a.latest_job_status ? (
-                      <div className="account-job-status">
-                        <span className={`status-badge status-${a.latest_job_status}`}>
-                          {STATUS_LABELS[a.latest_job_status] || a.latest_job_status}
-                        </span>
-                        {a.messages_transferred > 0 && (
-                          <span className="msg-count">{a.messages_transferred} messages</span>
-                        )}
-                        {a.latest_job_uuid && (
-                          <Link to="/jobs" className="job-link">
-                            {shortUuid(a.latest_job_uuid)}
-                          </Link>
-                        )}
-                        {a.latest_job_status === 'failed' && a.latest_job_error && (
-                          <span className="error-text job-error-detail" title={a.latest_job_error}>
-                            {a.latest_job_error}
+                    <TableRow
+                      key={a.id}
+                      className={cn(
+                        a.last_test_success === false && 'bg-red-50 dark:bg-red-500/10',
+                      )}
+                    >
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-primary"
+                          checked={selected.has(a.id)}
+                          onChange={() => toggleSelect(a.id)}
+                        />
+                      </TableCell>
+                      <TableCell>{a.yandex_email}</TableCell>
+                      <TableCell>{a.cpanel_email}</TableCell>
+                      <TableCell>{a.cpanel_imap_host}</TableCell>
+                      <TableCell>
+                        {a.last_test_success !== null ? (
+                          <span
+                            title={[
+                              `Yandex: ${a.last_test_yandex_message ?? '—'}`,
+                              `cPanel: ${a.last_test_cpanel_message ?? '—'}`,
+                              a.last_test_at ? `Tested: ${formatTrDateTime(a.last_test_at)}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join('\n')}
+                          >
+                            <Badge variant={a.last_test_success ? 'completed' : 'failed'}>
+                              {a.last_test_success ? 'Passed' : 'Failed'}
+                            </Badge>
                           </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
                         )}
-                      </div>
-                    ) : (
-                      <span className="muted">Not queued</span>
-                    )}
-                  </td>
-                  <td>{formatTrDateTime(a.created_at)}</td>
-                  <td className="row-actions">
-                    <button
-                      className="small secondary"
-                      onClick={() => handleTestRow(a.id)}
-                      disabled={testingId === a.id}
-                    >
-                      {testingId === a.id ? '...' : 'Test'}
-                    </button>
-                    <button
-                      className="small"
-                      onClick={() => setFolderPickerAccount(a)}
-                      disabled={a.latest_job_status === 'pending' || a.latest_job_status === 'running'}
-                    >
-                      Folders
-                    </button>
-                    <button className="danger small" onClick={() => handleDelete(a.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-                </tbody>
-              </table>
-            </div>
+                      </TableCell>
+                      <TableCell>
+                        {a.latest_job_status ? (
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge
+                              variant={
+                                a.latest_job_status as
+                                  'pending' | 'running' | 'completed' | 'failed'
+                              }
+                            >
+                              {STATUS_LABELS[a.latest_job_status] || a.latest_job_status}
+                            </Badge>
+                            {a.messages_transferred > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {a.messages_transferred} messages
+                              </span>
+                            )}
+                            {a.latest_job_uuid && (
+                              <Link to="/jobs" className="text-xs text-primary hover:underline">
+                                {shortUuid(a.latest_job_uuid)}
+                              </Link>
+                            )}
+                            {a.latest_job_status === 'failed' && a.latest_job_error && (
+                              <span
+                                className="block max-w-[280px] text-xs leading-snug break-words text-destructive"
+                                title={a.latest_job_error}
+                              >
+                                {a.latest_job_error}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Not queued</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{formatTrDateTime(a.created_at)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-nowrap gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleTestRow(a.id)}
+                            disabled={testingIds.has(a.id)}
+                          >
+                            {testingIds.has(a.id) ? '...' : 'Test'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setFolderPickerAccount(a)}
+                            disabled={
+                              a.latest_job_status === 'pending' || a.latest_job_status === 'running'
+                            }
+                          >
+                            <FolderCog className="h-3.5 w-3.5" />
+                            Folders
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(a.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           )}
         </>
       )}
@@ -313,11 +517,13 @@ export default function Accounts() {
           selectedYears={[...selectedYears].sort((a, b) => a - b)}
           onClose={() => setFolderPickerAccount(null)}
           onStarted={(msg) => {
-            setMessage(msg)
+            toast.success(msg)
             load()
           }}
         />
       )}
+
+      <ConfirmDialog state={confirmState} onClose={() => setConfirmState(null)} />
     </div>
   )
 }

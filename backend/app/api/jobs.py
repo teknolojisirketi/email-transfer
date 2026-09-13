@@ -6,19 +6,21 @@ from sqlalchemy.orm import Session
 from app.database import Account, MigrationJob, get_db
 from app.deps import get_current_user
 from app.schemas import (
+    BulkDeleteJobsRequest,
+    BulkDeleteResponse,
     FolderProgressItem,
     JobLogResponse,
     JobResponse,
     StartMigrationRequest,
     StartMigrationResponse,
 )
+from app.services.folder_filter import folders_to_storage, normalize_folders
 from app.services.imapsync import parse_messages_transferred
 from app.services.job_cancel import CANCELLED_BY_USER, mark_job_cancelled
 from app.services.job_log import append_cancelled_to_job_log, delete_job_log
 from app.services.job_sync import read_job_log_content, sync_active_jobs, sync_job_status
 from app.services.log_parser import parse_folder_progress
 from app.services.queue_service import cancel_migration, enqueue_migration
-from app.services.folder_filter import folders_to_storage, normalize_folders
 from app.services.year_filter import normalize_years, years_to_storage
 
 router = APIRouter(
@@ -209,3 +211,21 @@ def delete_job(job_uuid: str, db: Session = Depends(get_db)):
     delete_job_log(job.uuid)
     db.delete(job)
     db.commit()
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+def bulk_delete_jobs(payload: BulkDeleteJobsRequest, db: Session = Depends(get_db)):
+    jobs = db.query(MigrationJob).filter(MigrationJob.uuid.in_(payload.uuids)).all()
+    deleted = 0
+    skipped = 0
+    for job in jobs:
+        if job.status == "running":
+            skipped += 1
+            continue
+        if job.status == "pending":
+            cancel_migration(job.rq_job_id)
+        delete_job_log(job.uuid)
+        db.delete(job)
+        deleted += 1
+    db.commit()
+    return BulkDeleteResponse(deleted=deleted, skipped=skipped)

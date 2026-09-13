@@ -1,17 +1,16 @@
 from datetime import datetime, timezone
 
 from app.database import Account, MigrationJob, SessionLocal
+from app.services.folder_filter import storage_to_folders
 from app.services.imapsync import run_imapsync
 from app.services.job_cancel import (
     CANCELLED_BY_USER,
     check_job_cancelled,
-    is_job_cancelled,
     kill_orphan_imapsync_for_account,
     make_cancel_checker,
 )
 from app.services.job_log import append_cancelled_to_job_log, job_log_path
 from app.services.settings_service import get_or_create_app_settings
-from app.services.folder_filter import storage_to_folders
 from app.services.year_filter import storage_to_years
 
 
@@ -50,7 +49,7 @@ def migrate_account(job_uuid: str) -> dict:
         app_settings = get_or_create_app_settings()
         log_path = job_log_path(job_uuid)
         now = datetime.now(timezone.utc)
-        updated = (
+        (
             db.query(MigrationJob)
             .filter(
                 MigrationJob.uuid == job_uuid,

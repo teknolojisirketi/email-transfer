@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.deps import get_current_user
 from app.database import AppSettings, get_db
+from app.deps import get_current_user
 from app.schemas import SettingsResponse, SettingsUpdate
 from app.services.settings_service import get_or_create_app_settings
 

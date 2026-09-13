@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { ReactNode, useState } from 'react'
 import { api, AccountCreate, AccountTestResponse } from '../api'
 import TestResults from './TestResults'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
 
 const emptyForm: AccountCreate = {
   yandex_email: '',
@@ -19,6 +22,15 @@ function deriveImapHost(cpanelEmail: string, host: string): string {
 
 interface Props {
   onSaved: (message: string) => void
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5 text-sm font-medium">
+      {label}
+      {children}
+    </label>
+  )
 }
 
 export default function ManualAccountForm({ onSaved }: Props) {
@@ -97,71 +109,78 @@ export default function ManualAccountForm({ onSaved }: Props) {
   }
 
   return (
-    <div className="card manual-form">
-      <h3>Add account manually</h3>
-      <p className="hint">
-        Add accounts one at a time. You can test the connection before saving.
-      </p>
+    <Card>
+      <CardHeader>
+        <CardTitle>Add account manually</CardTitle>
+        <CardDescription>
+          Add accounts one at a time. You can test the connection before saving.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Yandex email">
+            <Input
+              type="email"
+              value={form.yandex_email}
+              onChange={(e) => update('yandex_email', e.target.value)}
+              placeholder="example@example.com"
+            />
+          </Field>
+          <Field label="Yandex password">
+            <Input
+              type="password"
+              value={form.yandex_password}
+              onChange={(e) => update('yandex_password', e.target.value)}
+              placeholder="App password"
+            />
+          </Field>
+          <Field label="cPanel email">
+            <Input
+              type="email"
+              value={form.cpanel_email}
+              onChange={(e) => update('cpanel_email', e.target.value)}
+              placeholder="example@example.com"
+            />
+          </Field>
+          <Field label="cPanel password">
+            <Input
+              type="password"
+              value={form.cpanel_password}
+              onChange={(e) => update('cpanel_password', e.target.value)}
+              placeholder="Email password"
+            />
+          </Field>
+          <Field label="cPanel IMAP host">
+            <Input
+              type="text"
+              value={form.cpanel_imap_host}
+              onChange={(e) => update('cpanel_imap_host', e.target.value)}
+              placeholder="mail.example.com (auto if empty)"
+            />
+          </Field>
+        </div>
 
-      <div className="form-grid manual-grid">
-        <label>
-          Yandex email
-          <input
-            type="email"
-            value={form.yandex_email}
-            onChange={(e) => update('yandex_email', e.target.value)}
-            placeholder="example@example.com"
-          />
-        </label>
-        <label>
-          Yandex password
-          <input
-            type="password"
-            value={form.yandex_password}
-            onChange={(e) => update('yandex_password', e.target.value)}
-            placeholder="App password"
-          />
-        </label>
-        <label>
-          cPanel email
-          <input
-            type="email"
-            value={form.cpanel_email}
-            onChange={(e) => update('cpanel_email', e.target.value)}
-            placeholder="example@example.com"
-          />
-        </label>
-        <label>
-          cPanel password
-          <input
-            type="password"
-            value={form.cpanel_password}
-            onChange={(e) => update('cpanel_password', e.target.value)}
-            placeholder="Email password"
-          />
-        </label>
-        <label>
-          cPanel IMAP host
-          <input
-            type="text"
-            value={form.cpanel_imap_host}
-            onChange={(e) => update('cpanel_imap_host', e.target.value)}
-            placeholder="mail.example.com (auto if empty)"
-          />
-        </label>
-      </div>
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
+            {error}
+          </div>
+        )}
+        {testResult && <TestResults result={testResult} />}
 
-      {error && <div className="alert error">{error}</div>}
-      {testResult && <TestResults result={testResult} />}
-
-      <div className="csv-actions">
-        <button type="button" className="secondary" onClick={handleTest} disabled={testing || saving}>
-          {testing ? 'Testing...' : 'Test connection'}
-        </button>
-        <button type="button" onClick={handleSave} disabled={testing || saving}>
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-      </div>
-    </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleTest}
+            disabled={testing || saving}
+          >
+            {testing ? 'Testing...' : 'Test connection'}
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={testing || saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

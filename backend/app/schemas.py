@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -31,12 +30,12 @@ class SettingsResponse(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
-    yandex_imap_host: Optional[str] = None
-    yandex_imap_port: Optional[int] = None
-    yandex_imap_ssl: Optional[bool] = None
-    cpanel_imap_port: Optional[int] = None
-    cpanel_imap_ssl: Optional[bool] = None
-    worker_concurrency: Optional[int] = Field(None, ge=1, le=10)
+    yandex_imap_host: str | None = None
+    yandex_imap_port: int | None = None
+    yandex_imap_ssl: bool | None = None
+    cpanel_imap_port: int | None = None
+    cpanel_imap_ssl: bool | None = None
+    worker_concurrency: int | None = Field(None, ge=1, le=10)
 
 
 class AccountCreate(BaseModel):
@@ -48,11 +47,11 @@ class AccountCreate(BaseModel):
 
 
 class AccountUpdate(BaseModel):
-    yandex_email: Optional[str] = None
-    yandex_password: Optional[str] = None
-    cpanel_email: Optional[str] = None
-    cpanel_password: Optional[str] = None
-    cpanel_imap_host: Optional[str] = None
+    yandex_email: str | None = None
+    yandex_password: str | None = None
+    cpanel_email: str | None = None
+    cpanel_password: str | None = None
+    cpanel_imap_host: str | None = None
 
 
 class AccountResponse(BaseModel):
@@ -61,16 +60,24 @@ class AccountResponse(BaseModel):
     cpanel_email: str
     cpanel_imap_host: str
     created_at: datetime
-    latest_job_uuid: Optional[str] = None
-    latest_job_status: Optional[str] = None
+    latest_job_uuid: str | None = None
+    latest_job_status: str | None = None
     messages_transferred: int = 0
-    latest_job_error: Optional[str] = None
+    latest_job_error: str | None = None
+    last_test_success: bool | None = None
+    last_test_at: datetime | None = None
+    last_test_yandex_message: str | None = None
+    last_test_cpanel_message: str | None = None
 
     model_config = {"from_attributes": True}
 
     @field_serializer("created_at")
     def serialize_created_at(self, value: datetime) -> str:
         return serialize_utc_datetime(value) or ""
+
+    @field_serializer("last_test_at")
+    def serialize_last_test_at(self, value: datetime | None) -> str | None:
+        return serialize_utc_datetime(value)
 
 
 class BulkImportRequest(BaseModel):
@@ -112,20 +119,20 @@ class JobResponse(BaseModel):
     account_id: int
     status: str
     messages_transferred: int
-    error_message: Optional[str]
-    log_file: Optional[str]
-    migrate_years: Optional[str] = None
-    migrate_folders: Optional[str] = None
-    started_at: Optional[datetime]
-    finished_at: Optional[datetime]
+    error_message: str | None
+    log_file: str | None
+    migrate_years: str | None = None
+    migrate_folders: str | None = None
+    started_at: datetime | None
+    finished_at: datetime | None
     created_at: datetime
-    yandex_email: Optional[str] = None
-    cpanel_email: Optional[str] = None
+    yandex_email: str | None = None
+    cpanel_email: str | None = None
 
     model_config = {"from_attributes": True}
 
     @field_serializer("started_at", "finished_at", "created_at")
-    def serialize_datetimes(self, value: Optional[datetime]) -> Optional[str]:
+    def serialize_datetimes(self, value: datetime | None) -> str | None:
         return serialize_utc_datetime(value)
 
 
@@ -133,8 +140,8 @@ class FolderProgressItem(BaseModel):
     name: str
     index: int
     total: int
-    source_messages: Optional[int] = None
-    transferred: Optional[int] = None
+    source_messages: int | None = None
+    transferred: int | None = None
     status: str
 
 
@@ -154,3 +161,16 @@ class StartMigrationRequest(BaseModel):
 class StartMigrationResponse(BaseModel):
     jobs_created: int
     job_uuids: list[str]
+
+
+class BulkDeleteAccountsRequest(BaseModel):
+    ids: list[int]
+
+
+class BulkDeleteJobsRequest(BaseModel):
+    uuids: list[str]
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted: int
+    skipped: int = 0

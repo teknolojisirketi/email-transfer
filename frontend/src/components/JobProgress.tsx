@@ -1,6 +1,7 @@
 import { Job } from '../api'
 import { formatElapsed } from '../utils/datetime'
 import { STATUS_LABELS } from '../utils/status'
+import { Badge } from './ui/badge'
 
 interface Props {
   job: Job
@@ -8,29 +9,32 @@ interface Props {
 }
 
 export default function JobProgress({ job, compact = false }: Props) {
-  const elapsed =
-    job.status === 'running' && job.started_at
-      ? formatElapsed(job.started_at)
-      : ''
+  const elapsed = job.status === 'running' && job.started_at ? formatElapsed(job.started_at) : ''
 
   return (
-    <div className="job-progress">
-      <span className={`status-badge status-${job.status}`}>
+    <div className="flex flex-col items-start gap-1">
+      <Badge variant={job.status as 'pending' | 'running' | 'completed' | 'failed'}>
         {STATUS_LABELS[job.status] || job.status}
-      </span>
+      </Badge>
       {job.messages_transferred > 0 && (
-        <span className="msg-count">{job.messages_transferred} messages</span>
+        <span className="text-xs text-muted-foreground">{job.messages_transferred} messages</span>
       )}
       {job.status === 'running' && elapsed && (
-        <span className="elapsed">
+        <span className="text-xs text-muted-foreground">
           {elapsed}
           {!compact && (
-            <span className="running-hint"> — Copying in progress; large mailboxes may take a long time</span>
+            <span className="text-muted-foreground/70">
+              {' '}
+              — Copying in progress; large mailboxes may take a long time
+            </span>
           )}
         </span>
       )}
       {job.status === 'failed' && (
-        <span className="error-text job-error-detail" title={job.error_message || undefined}>
+        <span
+          className="block max-w-[280px] text-xs leading-snug break-words text-destructive"
+          title={job.error_message || undefined}
+        >
           {job.error_message || 'Unknown error'}
         </span>
       )}

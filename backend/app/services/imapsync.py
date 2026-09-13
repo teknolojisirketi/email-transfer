@@ -4,19 +4,19 @@ import re
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from app.config import settings
 from app.crypto import decrypt_password
 from app.database import Account, AppSettings
+from app.services.folder_filter import build_include_args, format_folders_label
 from app.services.imap_folders import (
     build_unmapped_folder_args,
     filter_folders_by_names,
     list_imap_folders,
 )
-from app.services.folder_filter import build_include_args, format_folders_label
 from app.services.job_cancel import (
     CANCELLED_BY_USER,
     kill_orphan_imapsync_for_account,
@@ -65,24 +65,33 @@ def build_imapsync_command(
     passfile2: Path,
     extra_args: list[str] | None = None,
 ) -> list[str]:
-    yandex_password = decrypt_password(account.yandex_password_enc)
-
     cmd = [
         "imapsync",
-        "--host1", app_settings.yandex_imap_host,
-        "--port1", str(app_settings.yandex_imap_port),
-        "--user1", account.yandex_email,
-        "--passfile1", str(passfile1),
-        "--host2", account.cpanel_imap_host,
-        "--port2", str(app_settings.cpanel_imap_port),
-        "--user2", account.cpanel_email,
-        "--passfile2", str(passfile2),
-        "--sep1", "/",
-        "--sep2", ".",
+        "--host1",
+        app_settings.yandex_imap_host,
+        "--port1",
+        str(app_settings.yandex_imap_port),
+        "--user1",
+        account.yandex_email,
+        "--passfile1",
+        str(passfile1),
+        "--host2",
+        account.cpanel_imap_host,
+        "--port2",
+        str(app_settings.cpanel_imap_port),
+        "--user2",
+        account.cpanel_email,
+        "--passfile2",
+        str(passfile2),
+        "--sep1",
+        "/",
+        "--sep2",
+        ".",
         "--automap",
         "--syncinternaldates",
         "--syncflags",
-        "--useheader", "Message-Id",
+        "--useheader",
+        "Message-Id",
         "--nofoldersizes",
     ]
 
@@ -182,7 +191,8 @@ def run_imapsync(
             header_lines.append(f"=== Folder list warning: {folder_list_error} ===\n")
         if folder_args:
             header_lines.append(
-                f"=== Custom folder mappings (target: INBOX.{UNMAPPED_FOLDER_PARENT}.<yandex_name>) ===\n"
+                "=== Custom folder mappings "
+                f"(target: INBOX.{UNMAPPED_FOLDER_PARENT}.<yandex_name>) ===\n"
             )
             for i in range(0, len(folder_args), 2):
                 if folder_args[i] == "--f1f2":

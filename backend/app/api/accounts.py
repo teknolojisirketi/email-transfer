@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.crypto import decrypt_password, encrypt_password
 from app.database import Account, MigrationJob, get_db
+from app.deps import get_current_user
 from app.schemas import (
     AccountCreate,
     AccountFolderItem,
@@ -10,11 +13,12 @@ from app.schemas import (
     AccountResponse,
     AccountTestResponse,
     AccountUpdate,
+    BulkDeleteAccountsRequest,
+    BulkDeleteResponse,
     BulkImportRequest,
     BulkImportResponse,
     ImapTestResultResponse,
 )
-from app.deps import get_current_user
 from app.services.imap_folders import _is_automap_folder, list_imap_folders
 from app.services.imap_test import test_imap_connection
 from app.services.job_sync import sync_active_jobs
@@ -37,7 +41,9 @@ def _derive_imap_host(cpanel_email: str, cpanel_imap_host: str) -> str:
     return ""
 
 
-def _latest_job_info(db: Session, account_id: int) -> tuple[str | None, str | None, int, str | None]:
+def _latest_job_info(
+    db: Session, account_id: int
+) -> tuple[str | None, str | None, int, str | None]:
     active = (
         db.query(MigrationJob)
         .filter(
@@ -89,6 +95,10 @@ def _to_response(
         latest_job_status=latest_job_status,
         messages_transferred=messages_transferred,
         latest_job_error=latest_job_error,
+        last_test_success=account.last_test_success,
+        last_test_at=account.last_test_at,
+        last_test_yandex_message=account.last_test_yandex_message,
+        last_test_cpanel_message=account.last_test_cpanel_message,
     )
 
 
@@ -162,13 +172,21 @@ def test_saved_account(account_id: int, db: Session = Depends(get_db)):
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    return _run_account_test(
+    result = _run_account_test(
         yandex_email=account.yandex_email,
         yandex_password=decrypt_password(account.yandex_password_enc),
         cpanel_email=account.cpanel_email,
         cpanel_password=decrypt_password(account.cpanel_password_enc),
         cpanel_imap_host=account.cpanel_imap_host,
     )
+
+    account.last_test_success = result.overall_success
+    account.last_test_at = datetime.now(timezone.utc)
+    account.last_test_yandex_message = result.yandex.message
+    account.last_test_cpanel_message = result.cpanel.message
+    db.commit()
+
+    return result
 
 
 @router.get("/{account_id}/folders", response_model=AccountFoldersResponse)
@@ -319,3 +337,12 @@ def delete_account(account_id: int, db: Session = Depends(get_db)):
 def delete_all_accounts(db: Session = Depends(get_db)):
     db.query(Account).delete()
     db.commit()
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+def bulk_delete_accounts(payload: BulkDeleteAccountsRequest, db: Session = Depends(get_db)):
+    accounts = db.query(Account).filter(Account.id.in_(payload.ids)).all()
+    for account in accounts:
+        db.delete(account)
+    db.commit()
+    return BulkDeleteResponse(deleted=len(accounts))
